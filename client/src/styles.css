@@ -1716,6 +1716,30 @@ main.pt-16 > section.relative h2.font-display {
   font-weight: 800;
 }
 
+.admin-warning {
+  border: 1px solid rgb(244 63 94 / 0.34);
+  border-radius: 8px;
+  background: rgb(244 63 94 / 0.12);
+  padding: 12px 14px;
+  color: #fecdd3;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.admin-scoring-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.award-admin-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.05);
+  padding: 12px;
+}
+
 .locked-admin-panel {
   display: flex;
   align-items: center;
@@ -1854,6 +1878,10 @@ main.pt-16 > section.relative h2.font-display {
 
   .hero-content {
     padding: 28px 32px 48px;
+  }
+
+  .admin-scoring-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 

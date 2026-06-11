@@ -8,8 +8,16 @@ import {
   requireSupabase,
   setSetting
 } from "../db/supabase.js";
-import { evaluateMatchPrediction, getLeaderboard, getParticipantDetail, recalculateAllScores } from "../services/scoring.js";
-import { syncExternalData } from "../services/syncService.js";
+import {
+  AWARD_CONFIG,
+  displayAwardName,
+  evaluateMatchPrediction,
+  getLeaderboard,
+  getParticipantDetail,
+  getScoringAdminState,
+  normalizeAwardName,
+  recalculateAllScores
+} from "../services/scoring.js";
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -23,18 +31,6 @@ async function adminOnly(req, res, next) {
   const provided = req.header("x-admin-password") || req.body?.password;
   if (provided !== expected) {
     return res.status(401).json({ error: "Password de admin invalido." });
-  }
-  next();
-}
-
-function cronOnly(req, res, next) {
-  const expected = process.env.SYNC_SECRET;
-  if (!expected) {
-    return res.status(500).json({ error: "SYNC_SECRET no esta configurado." });
-  }
-  const provided = req.header("x-sync-secret") || req.query.secret;
-  if (provided !== expected) {
-    return res.status(401).json({ error: "Secreto de sincronizacion invalido." });
   }
   next();
 }
@@ -57,6 +53,24 @@ function optionalDate(value) {
   if (value === "" || value == null) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function cleanName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\./g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function sameTeamName(a, b) {
+  return Boolean(a && b && cleanName(a) === cleanName(b));
+}
+
+function isKnockoutStage(stage) {
+  return ["r32", "r16", "qf", "sf", "third", "final"].includes(stage);
 }
 
 function valuesDiffer(nextValue, currentValue, key) {
@@ -177,13 +191,9 @@ export function createApiRouter(io) {
     res.json({ ok: true });
   }));
 
-  router.post("/cron/sync", cronOnly, asyncHandler(async (_req, res) => {
-    const summary = await syncExternalData(io, {
-      includeGames: true,
-      includeTopScorers: false
-    });
-    res.json({ ok: true, summary });
-  }));
+  router.post("/cron/sync", (_req, res) => {
+    res.status(410).json({ error: "La sincronizacion automatica esta desactivada. Carga los resultados desde /admin." });
+  });
 
   router.get("/participants", asyncHandler(async (_req, res) => {
     const client = requireSupabase();
@@ -211,27 +221,25 @@ export function createApiRouter(io) {
     if (matchIds.length) {
       predictions = await fetchAll(client
         .from("predictions")
-        .select("match_id,predicted_home_goals,predicted_away_goals")
+        .select("*")
         .in("match_id", matchIds));
     }
 
     const stats = new Map();
     for (const prediction of predictions) {
-      const current = stats.get(prediction.match_id) || { prediction_count: 0, exact_count: 0 };
+      const current = stats.get(prediction.match_id) || { prediction_count: 0, exact_count: 0, result_count: 0 };
       current.prediction_count += 1;
       stats.set(prediction.match_id, current);
     }
 
     const rows = (matches || []).sort(sortMatches).map((match) => {
-      const stat = stats.get(match.match_id) || { prediction_count: 0, exact_count: 0 };
+      const stat = stats.get(match.match_id) || { prediction_count: 0, exact_count: 0, result_count: 0 };
       for (const prediction of predictions.filter((item) => item.match_id === match.match_id)) {
-        if (
-          match.home_goals != null &&
-          match.away_goals != null &&
-          prediction.predicted_home_goals === match.home_goals &&
-          prediction.predicted_away_goals === match.away_goals
-        ) {
+        const result = evaluateMatchPrediction(prediction, match);
+        if (result.status === "exacto") {
           stat.exact_count += 1;
+        } else if (result.status === "parcial") {
+          stat.result_count += 1;
         }
       }
       return { ...match, ...stat, stageLabel: stageLabel(match.stage) };
@@ -314,6 +322,8 @@ export function createApiRouter(io) {
 
   router.get("/awards", asyncHandler(async (_req, res) => {
     const client = requireSupabase();
+    const scoringState = await getScoringAdminState();
+    const aliases = scoringState.aliases || [];
     const [{ data: topScorers, error: scorersError }, { data: participants, error: participantsError }, { data: individual, error: individualError }] =
       await Promise.all([
         client.from("top_scorers_cache").select("*").order("goals", { ascending: false }).order("player_name").limit(12),
@@ -329,10 +339,16 @@ export function createApiRouter(io) {
       participant_id: participant.id,
       name: participant.name,
       top_scorer: individualMap.get(participant.id)?.top_scorer || null,
+      top_scorer_display: displayAwardName(individualMap.get(participant.id)?.top_scorer, aliases),
+      top_scorer_canonical: normalizeAwardName(individualMap.get(participant.id)?.top_scorer, aliases),
       best_player: individualMap.get(participant.id)?.best_player || null,
-      best_goalkeeper: individualMap.get(participant.id)?.best_goalkeeper || null
+      best_player_display: displayAwardName(individualMap.get(participant.id)?.best_player, aliases),
+      best_player_canonical: normalizeAwardName(individualMap.get(participant.id)?.best_player, aliases),
+      best_goalkeeper: individualMap.get(participant.id)?.best_goalkeeper || null,
+      best_goalkeeper_display: displayAwardName(individualMap.get(participant.id)?.best_goalkeeper, aliases),
+      best_goalkeeper_canonical: normalizeAwardName(individualMap.get(participant.id)?.best_goalkeeper, aliases)
     }));
-    res.json({ topScorers: topScorers || [], results: {}, predictions });
+    res.json({ topScorers: topScorers || [], results: scoringState.awards || {}, predictions });
   }));
 
   router.get("/admin/logs", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
@@ -342,14 +358,9 @@ export function createApiRouter(io) {
     res.json({ rows: data || [] });
   }));
 
-  router.post("/admin/sync", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
-    const summary = await syncExternalData(io, {
-      includeGames: true,
-      includeTopScorers: parseBoolean(req.body?.includeTopScorers),
-      forceTopScorers: parseBoolean(req.body?.forceTopScorers)
-    });
-    res.json({ ok: true, summary });
-  }));
+  router.post("/admin/sync", asyncHandler(adminOnly), (_req, res) => {
+    res.status(410).json({ error: "La sincronizacion externa esta desactivada. Usa carga manual y Recalcular." });
+  });
 
   router.patch("/admin/matches/:matchId", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
     const client = requireSupabase();
@@ -380,9 +391,6 @@ export function createApiRouter(io) {
     if (hasOwn(body, "manual_override")) updates.manual_override = parseBoolean(body.manual_override);
     if (hasOwn(body, "locked")) updates.locked = parseBoolean(body.locked);
 
-    if (errors.length) return res.status(400).json({ error: errors.join(" ") });
-    if (!Object.keys(updates).length) return res.status(400).json({ error: "No hay cambios para guardar." });
-
     const { data: existing, error: readError } = await client
       .from("match_results")
       .select("*")
@@ -391,11 +399,43 @@ export function createApiRouter(io) {
     assertNoError(readError, "Leer partido");
     if (!existing) return res.status(404).json({ error: "Partido no encontrado." });
 
-    const correctionFields = ["home_goals", "away_goals", "status", "match_date"];
+    const nextStatus = updates.status || existing.status;
+    const nextHomeGoals = hasOwn(updates, "home_goals") ? updates.home_goals : existing.home_goals;
+    const nextAwayGoals = hasOwn(updates, "away_goals") ? updates.away_goals : existing.away_goals;
+    const isKnockout = isKnockoutStage(existing.stage);
+
+    if ((nextStatus === "live" || nextStatus === "finished") && (nextHomeGoals == null || nextAwayGoals == null)) {
+      errors.push("Si el partido esta live o finished, los goles deben ser enteros validos.");
+    }
+
+    if (hasOwn(body, "qualified_team") || (isKnockout && nextStatus === "finished")) {
+      const provided = hasOwn(body, "qualified_team") ? String(body.qualified_team || "").trim() : String(existing.qualified_team || "").trim();
+      if (!isKnockout || nextStatus !== "finished") {
+        updates.qualified_team = null;
+      } else if (provided) {
+        if (sameTeamName(provided, existing.home_team)) updates.qualified_team = existing.home_team;
+        else if (sameTeamName(provided, existing.away_team)) updates.qualified_team = existing.away_team;
+        else errors.push("Equipo clasificado debe ser el equipo local o visitante.");
+      } else if (nextHomeGoals != null && nextAwayGoals != null && nextHomeGoals !== nextAwayGoals) {
+        updates.qualified_team = nextHomeGoals > nextAwayGoals ? existing.home_team : existing.away_team;
+      } else if (hasOwn(body, "qualified_team")) {
+        updates.qualified_team = null;
+      }
+    }
+
+    if (hasOwn(body, "decided_by_penalties")) {
+      updates.decided_by_penalties = isKnockout && nextStatus === "finished" ? parseBoolean(body.decided_by_penalties) : false;
+    } else if (!isKnockout || nextStatus !== "finished") {
+      updates.decided_by_penalties = false;
+    }
+
+    if (errors.length) return res.status(400).json({ error: errors.join(" ") });
+    if (!Object.keys(updates).length) return res.status(400).json({ error: "No hay cambios para guardar." });
+
+    const correctionFields = ["home_goals", "away_goals", "status", "match_date", "qualified_team", "decided_by_penalties"];
     const changedMatchData = correctionFields.some((field) => hasOwn(updates, field) && valuesDiffer(updates[field], existing[field], field));
     if (changedMatchData) updates.manual_override = true;
 
-    const nextStatus = updates.status || existing.status;
     updates.source = "admin";
     updates.last_updated = nowIso();
     if (nextStatus === "finished") updates.confirmed_at = nowIso();
@@ -414,6 +454,111 @@ export function createApiRouter(io) {
     await insertLog("admin.match", "ok", `Resultado manual guardado para ${matchId}.`, payload);
     io.emit("scores:updated", { at: nowIso(), manual: true, matchId });
     res.json({ ok: true, row: updated });
+  }));
+
+  router.get("/admin/scoring-controls", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
+    res.json(await getScoringAdminState());
+  }));
+
+  router.post("/admin/group-final-standings", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    const client = requireSupabase();
+    const groupCode = String(req.body?.group_code || "").trim().toUpperCase();
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (!/^[A-L]$/.test(groupCode)) return res.status(400).json({ error: "Grupo invalido." });
+    if (rows.length !== 4) return res.status(400).json({ error: "Debes guardar cuatro posiciones para el grupo." });
+
+    const normalizedRows = rows.map((row) => ({
+      group_code: groupCode,
+      team_code: String(row.team_code || "").trim(),
+      final_position: Number(row.final_position),
+      source: "manual",
+      updated_at: nowIso()
+    }));
+    const positions = new Set(normalizedRows.map((row) => row.final_position));
+    const teams = new Set(normalizedRows.map((row) => cleanName(row.team_code)));
+    if ([...positions].some((position) => !Number.isInteger(position) || position < 1 || position > 4) || positions.size !== 4) {
+      return res.status(400).json({ error: "Las posiciones deben ser 1, 2, 3 y 4." });
+    }
+    if ([...teams].some((team) => !team) || teams.size !== 4) {
+      return res.status(400).json({ error: "No se pueden repetir equipos en el grupo." });
+    }
+
+    const { error: deleteError } = await client.from("group_final_standings").delete().eq("group_code", groupCode);
+    assertNoError(deleteError, "Limpiar posiciones finales");
+    const { error: insertError } = await client.from("group_final_standings").insert(normalizedRows);
+    assertNoError(insertError, "Guardar posiciones finales");
+    await recalculateAllScores();
+    await insertLog("admin.groups", "ok", `Posiciones finales guardadas para grupo ${groupCode}.`, { groupCode, rows: normalizedRows });
+    io.emit("scores:updated", { at: nowIso(), manual: true, groupCode });
+    res.json({ ok: true });
+  }));
+
+  router.post("/admin/best-thirds-final", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    const client = requireSupabase();
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (rows.length !== 8) return res.status(400).json({ error: "Debes seleccionar exactamente 8 mejores terceros." });
+
+    const normalizedRows = rows.map((row) => ({
+      team_code: String(row.team_code || "").trim(),
+      group_code: String(row.group_code || "").trim().toUpperCase() || null,
+      source: "manual",
+      updated_at: nowIso()
+    }));
+    const teams = new Set(normalizedRows.map((row) => cleanName(row.team_code)));
+    if ([...teams].some((team) => !team) || teams.size !== 8) {
+      return res.status(400).json({ error: "Los mejores terceros deben ser 8 equipos distintos." });
+    }
+    if (normalizedRows.some((row) => row.group_code && !/^[A-L]$/.test(row.group_code))) {
+      return res.status(400).json({ error: "Grupo invalido en mejores terceros." });
+    }
+
+    const { error: deleteError } = await client.from("best_thirds_final").delete().neq("team_code", "");
+    assertNoError(deleteError, "Limpiar mejores terceros");
+    const { error: insertError } = await client.from("best_thirds_final").insert(normalizedRows);
+    assertNoError(insertError, "Guardar mejores terceros");
+    await recalculateAllScores();
+    await insertLog("admin.best_thirds", "ok", "Mejores terceros guardados.", { rows: normalizedRows });
+    io.emit("scores:updated", { at: nowIso(), manual: true, bestThirds: true });
+    res.json({ ok: true });
+  }));
+
+  router.post("/admin/awards", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    const client = requireSupabase();
+    const rows = Array.isArray(req.body?.awards) ? req.body.awards : [];
+    const allowedKeys = new Set(Object.keys(AWARD_CONFIG));
+    if (!rows.length) return res.status(400).json({ error: "No hay premios para guardar." });
+
+    const normalizedRows = rows.map((row) => {
+      const key = String(row.key || "").trim();
+      const config = AWARD_CONFIG[key];
+      const winner = String(row.winner_name || "").trim();
+      const points = Number(row.points ?? config?.points);
+      const isConfirmed = parseBoolean(row.is_confirmed);
+      return {
+        key,
+        winner_name: winner || null,
+        points,
+        is_confirmed: isConfirmed,
+        updated_at: nowIso()
+      };
+    });
+
+    if (normalizedRows.some((row) => !allowedKeys.has(row.key))) {
+      return res.status(400).json({ error: "Premio invalido." });
+    }
+    if (normalizedRows.some((row) => !Number.isFinite(row.points) || row.points <= 0)) {
+      return res.status(400).json({ error: "Los puntos de premios deben ser positivos." });
+    }
+    if (normalizedRows.some((row) => row.is_confirmed && !row.winner_name)) {
+      return res.status(400).json({ error: "Para confirmar un premio debes seleccionar ganador." });
+    }
+
+    const { error } = await client.from("award_results").upsert(normalizedRows, { onConflict: "key" });
+    assertNoError(error, "Guardar premios individuales");
+    await recalculateAllScores();
+    await insertLog("admin.awards", "ok", "Premios individuales guardados.", { rows: normalizedRows });
+    io.emit("scores:updated", { at: nowIso(), manual: true, awards: true });
+    res.json({ ok: true });
   }));
 
   router.post("/admin/password", asyncHandler(adminOnly), asyncHandler(async (req, res) => {

@@ -11,6 +11,7 @@
     "start": "node server/index.js",
     "seed:sql": "node scripts/generate-supabase-seed.mjs",
     "data:update-schedule-samuel": "node scripts/apply-schedule-and-samuel.mjs",
+    "data:fix-marquez": "node scripts/apply-marquez-corrections.mjs",
     "check": "npm run build"
   },
   "dependencies": {
@@ -21,7 +22,6 @@
     "express": "^5.2.1",
     "framer-motion": "^12.24.1",
     "lucide-react": "^0.560.0",
-    "node-cron": "^4.2.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "socket.io": "^4.8.3",

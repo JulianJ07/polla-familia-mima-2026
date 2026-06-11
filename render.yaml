@@ -11,21 +11,9 @@ services:
         value: production
       - key: ENABLE_CRON
         value: false
-      - key: SYNC_SECRET
-        sync: false
       - key: ADMIN_PASSWORD
         sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
-      - key: WORLD_CUP_GAMES_URL
-        value: https://worldcup26.ir/get/games
-      - key: WORLD_CUP_GROUPS_URL
-        value: https://worldcup26.ir/get/groups
-      - key: RAPIDAPI_KEY
-        sync: false
-      - key: RAPIDAPI_HOST
-        value: v3.football.api-sports.io
-      - key: TOP_SCORERS_SYNC_HOURS
-        value: 12

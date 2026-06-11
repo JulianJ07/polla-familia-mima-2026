@@ -26,7 +26,7 @@ import {
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { io } from "socket.io-client";
-import { adminPatch, adminPost, apiGet } from "./api.js";
+import { adminGet, adminPatch, adminPost, apiGet } from "./api.js";
 import stadiumImage from "./assets/stadium-night.png";
 
 const stages = [
@@ -559,7 +559,7 @@ function IndividualAwardsPanel({ detail }) {
           return (
             <article key={award.key} className={cx("individual-award-card", `award-state-${award.status}`)}>
               <p className="text-xs font-black uppercase text-muted">{award.label}</p>
-              <strong className="truncate text-white">{award.value || "-"}</strong>
+              <strong className="truncate text-white">{award.displayValue || award.value || "-"}</strong>
               <span className="individual-award-status">{label}</span>
               <small>{formatPoints(award.points || 0)} pts</small>
             </article>
@@ -769,14 +769,18 @@ function MatchesView({ matches, stage, setStage }) {
               </span>
               <strong className="truncate text-white">{match.away_team}</strong>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
               <div className="mini-stat">
                 <span>{match.prediction_count || 0}</span>
                 <small>pronosticos</small>
               </div>
               <div className="mini-stat">
                 <span>{match.exact_count || 0}</span>
-                <small>exactos</small>
+                <small>marcadores exactos</small>
+              </div>
+              <div className="mini-stat">
+                <span>{match.result_count || 0}</span>
+                <small>resultados acertados</small>
               </div>
             </div>
           </motion.button>
@@ -1049,9 +1053,24 @@ function AwardsView({ awards }) {
                 <strong className="truncate text-white">{item.name}</strong>
                 <Trophy size={18} className="text-gold" />
               </div>
-              <AwardLine label="Goleador" value={item.top_scorer} actual={awards.results?.top_scorer} points={5} />
-              <AwardLine label="Balon de Oro" value={item.best_player} actual={awards.results?.best_player} points={5} />
-              <AwardLine label="Guante de Oro" value={item.best_goalkeeper} actual={awards.results?.best_goalkeeper} points={6} />
+              <AwardLine
+                label="Goleador"
+                value={item.top_scorer_display || item.top_scorer}
+                canonical={item.top_scorer_canonical}
+                result={awards.results?.top_scorer}
+              />
+              <AwardLine
+                label="Balon de Oro"
+                value={item.best_player_display || item.best_player}
+                canonical={item.best_player_canonical}
+                result={awards.results?.best_player}
+              />
+              <AwardLine
+                label="Guante de Oro"
+                value={item.best_goalkeeper_display || item.best_goalkeeper}
+                canonical={item.best_goalkeeper_canonical}
+                result={awards.results?.best_goalkeeper}
+              />
             </article>
           ))}
           {!filteredPredictions.length && (
@@ -1066,8 +1085,9 @@ function AwardsView({ awards }) {
   );
 }
 
-function AwardLine({ label, value, actual, points }) {
-  const hit = value && actual && value.toLowerCase() === actual.toLowerCase();
+function AwardLine({ label, value, canonical, result }) {
+  const confirmed = result?.is_confirmed;
+  const hit = confirmed && canonical && canonical === result?.canonical_winner;
   return (
     <div className="award-line">
       <div className="min-w-0">
@@ -1075,8 +1095,201 @@ function AwardLine({ label, value, actual, points }) {
         <p className="truncate font-bold text-white">{value || "-"}</p>
       </div>
       <span className={cx("award-status", hit ? "award-status-hit" : "award-status-pending")}>
-        {hit ? `+${points}` : "en juego"}
+        {hit ? `+${formatPoints(result.points)}` : confirmed ? "sin puntos" : "en juego"}
       </span>
+    </div>
+  );
+}
+
+function isWholeNumberString(value) {
+  if (value === "" || value == null) return true;
+  return /^\d+$/.test(String(value));
+}
+
+function thirdValue(row) {
+  return row ? `${row.group_code || row.groupCode || ""}|${row.team_code || row.team || ""}` : "";
+}
+
+function parseThirdValue(value) {
+  const [group_code, team_code] = String(value || "").split("|");
+  return { group_code, team_code };
+}
+
+function GroupFinalControl({ controls, selectedGroupCode, setSelectedGroupCode, form, setForm, onSave, busy }) {
+  const groups = controls?.groups || [];
+  const group = groups.find((item) => item.group_code === selectedGroupCode) || groups[0];
+  const positions = [1, 2, 3, 4];
+  const teams = [...new Set((group?.rows || []).map((row) => row.team).filter(Boolean))];
+  const selectedTeams = form[group?.group_code] || positions.map((position) => group?.manual_rows?.find((row) => row.final_position === position)?.team_code || group?.rows?.[position - 1]?.team || "");
+
+  function updatePosition(index, value) {
+    const next = [...selectedTeams];
+    next[index] = value;
+    setForm((current) => ({ ...current, [group.group_code]: next }));
+  }
+
+  if (!groups.length) return null;
+
+  return (
+    <div className="panel space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="section-title">Posiciones de grupo</h3>
+        <Medal className="text-gold" size={22} />
+      </div>
+      <label className="field-label">
+        Grupo
+        <select className="text-input" value={group?.group_code || selectedGroupCode} onChange={(event) => setSelectedGroupCode(event.target.value)}>
+          {groups.map((item) => (
+            <option key={item.group_code} value={item.group_code}>Grupo {item.group_code}</option>
+          ))}
+        </select>
+      </label>
+      <div className="space-y-2">
+        {(group?.rows || []).map((row) => (
+          <div key={`${group.group_code}-${row.team}`} className="detail-row">
+            <div className="min-w-0">
+              <p className="truncate font-bold text-white">#{row.position} {row.team}</p>
+              <p className="truncate text-xs text-muted">
+                {row.points == null ? "sin tabla calculada" : `${row.points} pts, DG ${row.gd}, GF ${row.gf}`}
+              </p>
+            </div>
+            <span className="text-xs font-black uppercase text-mint">{group.source}</span>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {positions.map((position, index) => (
+          <label key={position} className="field-label">
+            Posicion {position}
+            <select className="text-input" value={selectedTeams[index] || ""} onChange={(event) => updatePosition(index, event.target.value)}>
+              <option value="">Seleccionar</option>
+              {teams.map((team) => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <button className="secondary-button" type="button" onClick={() => onSave(group.group_code, selectedTeams)} disabled={busy}>
+        <CheckCircle2 size={18} /> Guardar posiciones
+      </button>
+    </div>
+  );
+}
+
+function BestThirdsControl({ controls, form, setForm, onSave, busy }) {
+  const options = controls?.thirdOptions || [];
+  const calculated = controls?.bestThirds?.rows || [];
+  const slots = Array.from({ length: 8 }, (_, index) => index);
+
+  function updateSlot(index, value) {
+    const next = [...form];
+    next[index] = value;
+    setForm(next);
+  }
+
+  return (
+    <div className="panel space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="section-title">Mejores terceros</h3>
+        <Table2 className="text-mint" size={22} />
+      </div>
+      <div className="space-y-2">
+        {calculated.length ? calculated.map((row) => (
+          <div key={`${row.rank}-${row.team}`} className="detail-row">
+            <p className="truncate font-bold text-white">#{row.rank} {row.team}</p>
+            <span className="text-xs font-black uppercase text-muted">Grupo {row.groupCode || row.group_code || "-"}</span>
+          </div>
+        )) : (
+          <div className="rounded-md border border-white/10 bg-white/6 p-3 text-sm font-bold text-muted">
+            Pendiente de posiciones finales.
+          </div>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {slots.map((slot) => (
+          <label key={slot} className="field-label">
+            Cupo {slot + 1}
+            <select className="text-input" value={form[slot] || ""} onChange={(event) => updateSlot(slot, event.target.value)}>
+              <option value="">Seleccionar</option>
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <button className="secondary-button" type="button" onClick={() => onSave(form)} disabled={busy}>
+        <CheckCircle2 size={18} /> Guardar mejores terceros
+      </button>
+    </div>
+  );
+}
+
+function AwardResultsControl({ controls, form, setForm, onSave, busy }) {
+  const awardLabels = {
+    top_scorer: "Goleador",
+    best_player: "Balon de Oro",
+    best_goalkeeper: "Guante de Oro"
+  };
+
+  function updateAward(key, patch) {
+    setForm((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] || {}),
+        ...patch
+      }
+    }));
+  }
+
+  return (
+    <div className="panel space-y-4 lg:col-span-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="section-title">Premios individuales</h3>
+        <Trophy className="text-gold" size={22} />
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {Object.entries(awardLabels).map(([key, label]) => {
+          const award = form[key] || {};
+          const options = controls?.awardOptions?.[key] || [];
+          return (
+            <div key={key} className="award-admin-card">
+              <label className="field-label">
+                {label}
+                <select className="text-input" value={award.winner_name || ""} onChange={(event) => updateAward(key, { winner_name: event.target.value })}>
+                  <option value="">En juego</option>
+                  {options.map((option) => (
+                    <option key={option.canonical} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                Puntos
+                <input
+                  className="text-input"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={award.points ?? ""}
+                  onChange={(event) => updateAward(key, { points: event.target.value })}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm font-bold text-muted">
+                <input
+                  type="checkbox"
+                  checked={Boolean(award.is_confirmed)}
+                  onChange={(event) => updateAward(key, { is_confirmed: event.target.checked })}
+                />
+                Confirmado
+              </label>
+            </div>
+          );
+        })}
+      </div>
+      <button className="secondary-button" type="button" onClick={() => onSave(form)} disabled={busy}>
+        <CheckCircle2 size={18} /> Guardar premios
+      </button>
     </div>
   );
 }
@@ -1087,8 +1300,12 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [logs, setLogs] = useState([]);
   const [newPassword, setNewPassword] = useState("");
-  const [includeTopScorers, setIncludeTopScorers] = useState(false);
   const [adminMatches, setAdminMatches] = useState([]);
+  const [scoringControls, setScoringControls] = useState(null);
+  const [selectedGroupCode, setSelectedGroupCode] = useState("A");
+  const [groupFinalForm, setGroupFinalForm] = useState({});
+  const [bestThirdsForm, setBestThirdsForm] = useState(Array.from({ length: 8 }, () => ""));
+  const [awardsForm, setAwardsForm] = useState({});
   const [selectedMatchId, setSelectedMatchId] = useState("");
   const [adminStageFilter, setAdminStageFilter] = useState("group");
   const [adminGroupFilter, setAdminGroupFilter] = useState("all");
@@ -1102,7 +1319,9 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     status: "scheduled",
     match_date: "",
     manual_override: true,
-    locked: false
+    locked: false,
+    qualified_team: "",
+    decided_by_penalties: false
   });
 
   function nullableNumber(value) {
@@ -1114,22 +1333,9 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     return groupCode?.toUpperCase() || "";
   }
 
-  function syncMessage(summary) {
-    const games = summary?.games || {};
-    const scorers = summary?.topScorers || {};
-    const scorersText = includeTopScorers
-      ? ` Goleadores: ${scorers.skipped ? scorers.reason : `${scorers.updated || 0} actualizados`}.`
-      : "";
-    return `Sync listo: ${games.updated || 0} partidos actualizados, ${games.skippedLocked || 0} bloqueados omitidos.${scorersText}`;
-  }
-
   async function loadLogs() {
     if (!password) return;
-    const data = await fetch("/api/admin/logs", { headers: { "x-admin-password": password } }).then(async (response) => {
-      const json = await response.json();
-      if (!response.ok) throw new Error(json.error || "No se pudieron leer logs");
-      return json;
-    });
+    const data = await adminGet("/admin/logs", password);
     setLogs(data.rows || []);
   }
 
@@ -1138,33 +1344,26 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     setAdminMatches(data.rows || []);
   }
 
+  async function loadScoringControls() {
+    if (!password) return;
+    const data = await adminGet("/admin/scoring-controls", password);
+    setScoringControls(data);
+  }
+
+  async function loadAdminData() {
+    await Promise.all([loadLogs(), loadAdminMatches(), loadScoringControls()]);
+  }
+
   async function handleUnlock(event) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
     try {
-      await loadLogs();
-      await loadAdminMatches();
+      await loadAdminData();
       setIsAdminUnlocked(true);
       setMessage("Admin desbloqueado.");
     } catch (error) {
       setIsAdminUnlocked(false);
-      setMessage(error.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleSync() {
-    setBusy(true);
-    setMessage("");
-    try {
-      const result = await adminPost("/admin/sync", password, { includeTopScorers });
-      setMessage(syncMessage(result.summary));
-      await loadLogs();
-      await loadAdminMatches();
-      onDone();
-    } catch (error) {
       setMessage(error.message);
     } finally {
       setBusy(false);
@@ -1177,7 +1376,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     try {
       await adminPost("/scores/recalculate", password);
       setMessage("Tabla recalculada.");
-      await loadLogs();
+      await loadAdminData();
       onDone();
     } catch (error) {
       setMessage(error.message);
@@ -1189,20 +1388,32 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
   async function handleSaveMatch(event) {
     event.preventDefault();
     if (!selectedMatchId || !isAdminUnlocked) return;
+    if (!isWholeNumberString(matchForm.home_goals) || !isWholeNumberString(matchForm.away_goals)) {
+      setMessage("Los goles deben ser numeros enteros mayores o iguales a 0.");
+      return;
+    }
+    if ((matchForm.status === "live" || matchForm.status === "finished") && (matchForm.home_goals === "" || matchForm.away_goals === "")) {
+      setMessage("Si el partido esta live o finished, debes escribir goles local y visitante.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
-      await adminPatch(`/admin/matches/${encodeURIComponent(selectedMatchId)}`, password, {
+      const payload = {
         home_goals: nullableNumber(matchForm.home_goals),
         away_goals: nullableNumber(matchForm.away_goals),
         status: matchForm.status,
         match_date: colombiaDateTimeToIso(matchForm.match_date),
         manual_override: matchForm.manual_override,
         locked: matchForm.locked
-      });
+      };
+      if (selectedMatch?.stage !== "group") {
+        payload.qualified_team = matchForm.qualified_team || null;
+        payload.decided_by_penalties = matchForm.decided_by_penalties;
+      }
+      await adminPatch(`/admin/matches/${encodeURIComponent(selectedMatchId)}`, password, payload);
       setMessage("Resultado manual guardado y tabla recalculada.");
-      await loadAdminMatches();
-      await loadLogs();
+      await loadAdminData();
       onDone();
     } catch (error) {
       setMessage(error.message);
@@ -1221,7 +1432,75 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       setNewPassword("");
       setIsAdminUnlocked(true);
       setMessage("Password admin actualizado.");
-      await loadLogs();
+      await loadAdminData();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveGroupFinal(groupCode, teams) {
+    const cleanTeams = (teams || []).map((team) => String(team || "").trim());
+    if (cleanTeams.length !== 4 || cleanTeams.some((team) => !team) || new Set(cleanTeams).size !== 4) {
+      setMessage("Selecciona cuatro equipos distintos para el grupo.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await adminPost("/admin/group-final-standings", password, {
+        group_code: groupCode,
+        rows: cleanTeams.map((team, index) => ({ team_code: team, final_position: index + 1 }))
+      });
+      setMessage(`Grupo ${groupCode} guardado y tabla recalculada.`);
+      await loadAdminData();
+      onDone();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveBestThirds(values) {
+    const rows = (values || []).map(parseThirdValue).filter((row) => row.team_code);
+    if (rows.length !== 8 || new Set(rows.map((row) => row.team_code)).size !== 8) {
+      setMessage("Selecciona exactamente 8 mejores terceros distintos.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await adminPost("/admin/best-thirds-final", password, { rows });
+      setMessage("Mejores terceros guardados y tabla recalculada.");
+      await loadAdminData();
+      onDone();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveAwards(form) {
+    const awards = Object.entries(form || {}).map(([key, row]) => ({
+      key,
+      winner_name: row.winner_name || null,
+      points: Number(row.points),
+      is_confirmed: Boolean(row.is_confirmed)
+    }));
+    if (awards.some((award) => award.is_confirmed && !award.winner_name)) {
+      setMessage("Para confirmar un premio debes seleccionar ganador.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await adminPost("/admin/awards", password, { awards });
+      setMessage("Premios guardados y tabla recalculada.");
+      await loadAdminData();
+      onDone();
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1272,7 +1551,9 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
         status: "scheduled",
         match_date: "",
         manual_override: true,
-        locked: false
+        locked: false,
+        qualified_team: "",
+        decided_by_penalties: false
       });
       return;
     }
@@ -1284,16 +1565,53 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       status: selectedMatch.status || "scheduled",
       match_date: datetimeLocalColombia(selectedMatch.match_date),
       manual_override: selectedMatch.manual_override ?? true,
-      locked: selectedMatch.locked ?? false
+      locked: selectedMatch.locked ?? false,
+      qualified_team: selectedMatch.qualified_team || "",
+      decided_by_penalties: Boolean(selectedMatch.decided_by_penalties)
     });
   }, [selectedMatch]);
+
+  useEffect(() => {
+    if (!scoringControls) return;
+    const nextGroups = {};
+    for (const group of scoringControls.groups || []) {
+      nextGroups[group.group_code] = [1, 2, 3, 4].map((position) =>
+        group.manual_rows?.find((row) => row.final_position === position)?.team_code ||
+        group.rows?.find((row) => row.position === position)?.team ||
+        ""
+      );
+    }
+    setGroupFinalForm(nextGroups);
+    const manualThirds = scoringControls.bestThirdsManual || [];
+    const calculatedThirds = scoringControls.bestThirds?.rows || [];
+    const thirds = (manualThirds.length ? manualThirds : calculatedThirds)
+      .slice(0, 8)
+      .map(thirdValue);
+    setBestThirdsForm([...thirds, ...Array.from({ length: Math.max(0, 8 - thirds.length) }, () => "")]);
+    const nextAwards = {};
+    for (const [key, award] of Object.entries(scoringControls.awards || {})) {
+      nextAwards[key] = {
+        winner_name: award.winner_display || award.winner_name || "",
+        points: award.points ?? "",
+        is_confirmed: Boolean(award.is_confirmed)
+      };
+    }
+    setAwardsForm(nextAwards);
+  }, [scoringControls]);
+
+  const selectedIsKnockoutFinished = selectedMatch && selectedMatch.stage !== "group" && matchForm.status === "finished";
+  const selectedScoreIsTie =
+    matchForm.home_goals !== "" &&
+    matchForm.away_goals !== "" &&
+    Number(matchForm.home_goals) === Number(matchForm.away_goals);
+  const showQualifiedWarning = selectedIsKnockoutFinished && selectedScoreIsTie && !matchForm.qualified_team;
 
   return (
     <section className="page-section">
       <div className="section-heading">
         <div>
           <p className="eyebrow">Admin</p>
-          <h2 className="page-title">Carga y sincronizacion</h2>
+          <h2 className="page-title">Carga manual</h2>
         </div>
         <Lock className="text-gold" size={30} />
       </div>
@@ -1320,14 +1638,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
 
           {isAdminUnlocked && (
             <>
-              <label className="flex items-center gap-2 text-sm font-bold text-muted">
-                <input type="checkbox" checked={includeTopScorers} onChange={(event) => setIncludeTopScorers(event.target.checked)} />
-                Incluir goleadores
-              </label>
               <div className="flex flex-wrap gap-3">
-                <button className="secondary-button" type="button" onClick={handleSync} disabled={busy}>
-                  <Activity size={18} /> Sync
-                </button>
                 <button className="secondary-button" type="button" onClick={handleRecalculate} disabled={busy}>
                   <RefreshCw size={18} /> Recalcular
                 </button>
@@ -1468,6 +1779,8 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
                   className="text-input"
                   type="number"
                   min="0"
+                  step="1"
+                  inputMode="numeric"
                   value={matchForm.home_goals}
                   onChange={(event) => setMatchForm((current) => ({ ...current, home_goals: event.target.value }))}
                 />
@@ -1478,6 +1791,8 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
                   className="text-input"
                   type="number"
                   min="0"
+                  step="1"
+                  inputMode="numeric"
                   value={matchForm.away_goals}
                   onChange={(event) => setMatchForm((current) => ({ ...current, away_goals: event.target.value }))}
                 />
@@ -1503,7 +1818,26 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
                   onChange={(event) => setMatchForm((current) => ({ ...current, match_date: event.target.value }))}
                 />
               </label>
+              {selectedIsKnockoutFinished && (
+                <label className="field-label">
+                  Equipo clasificado
+                  <select
+                    className="text-input"
+                    value={matchForm.qualified_team}
+                    onChange={(event) => setMatchForm((current) => ({ ...current, qualified_team: event.target.value }))}
+                  >
+                    <option value="">Seleccionar</option>
+                    <option value={matchForm.home_team}>{matchForm.home_team || "Equipo local"}</option>
+                    <option value={matchForm.away_team}>{matchForm.away_team || "Equipo visitante"}</option>
+                  </select>
+                </label>
+              )}
             </div>
+            {showQualifiedWarning && (
+              <div className="admin-warning">
+                Este partido terminó empatado. Selecciona el equipo clasificado para calcular correctamente los puntos.
+              </div>
+            )}
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm font-bold text-muted">
                 <input
@@ -1521,6 +1855,16 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
                 />
                 locked
               </label>
+              {selectedIsKnockoutFinished && (
+                <label className="flex items-center gap-2 text-sm font-bold text-muted">
+                  <input
+                    type="checkbox"
+                    checked={matchForm.decided_by_penalties}
+                    onChange={(event) => setMatchForm((current) => ({ ...current, decided_by_penalties: event.target.checked }))}
+                  />
+                  Definido por penales
+                </label>
+              )}
             </div>
             <button className="primary-button" type="submit" disabled={busy || !selectedMatchId}>
               <CheckCircle2 size={18} /> Guardar resultado
@@ -1536,9 +1880,37 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
           </div>
         )}
 
+        {isAdminUnlocked && scoringControls && (
+          <div className="admin-scoring-grid lg:col-span-2">
+            <GroupFinalControl
+              controls={scoringControls}
+              selectedGroupCode={selectedGroupCode}
+              setSelectedGroupCode={setSelectedGroupCode}
+              form={groupFinalForm}
+              setForm={setGroupFinalForm}
+              onSave={handleSaveGroupFinal}
+              busy={busy}
+            />
+            <BestThirdsControl
+              controls={scoringControls}
+              form={bestThirdsForm}
+              setForm={setBestThirdsForm}
+              onSave={handleSaveBestThirds}
+              busy={busy}
+            />
+            <AwardResultsControl
+              controls={scoringControls}
+              form={awardsForm}
+              setForm={setAwardsForm}
+              onSave={handleSaveAwards}
+              busy={busy}
+            />
+          </div>
+        )}
+
         {isAdminUnlocked && (
           <div className="panel lg:col-span-2">
-            <h3 className="section-title mb-4">Logs de sincronizacion</h3>
+            <h3 className="section-title mb-4">Logs de admin</h3>
             <div className="space-y-2">
               {logs.map((log) => (
                 <div key={log.id} className={cx("detail-row log-row", `log-${log.status || "unknown"}`)}>

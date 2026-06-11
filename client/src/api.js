@@ -25,6 +25,15 @@ export async function adminPost(path, password, body = {}) {
   return parseResponse(response);
 }
 
+export async function adminGet(path, password) {
+  const response = await fetch(`/api${path}`, {
+    headers: {
+      "x-admin-password": password
+    }
+  });
+  return parseResponse(response);
+}
+
 export async function adminPatch(path, password, body = {}) {
   const response = await fetch(`/api${path}`, {
     method: "PATCH",

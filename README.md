@@ -27,8 +27,6 @@ ADMIN_PASSWORD=mima2026
 SUPABASE_URL=https://tu-proyecto.supabase.co
 SUPABASE_SERVICE_KEY=tu-service-role-o-secret-key
 ENABLE_CRON=false
-SYNC_SECRET=un-secreto-largo-para-cron
-TOP_SCORERS_SYNC_HOURS=12
 ```
 
 `.env` esta en `.gitignore` y no debe subirse.
@@ -43,7 +41,7 @@ TOP_SCORERS_SYNC_HOURS=12
 
 El backend usa la service role key solo del lado servidor. No se expone ninguna key de Supabase al navegador.
 
-Si la base ya existe, ejecuta tambien la migracion segura:
+Si la base ya existe, ejecuta tambien las migraciones seguras:
 
 ```sql
 -- supabase/migrations/20260610_match_result_overrides.sql
@@ -53,6 +51,12 @@ alter table match_results add column if not exists source text;
 alter table match_results add column if not exists confirmed_at timestamptz;
 alter table match_results add column if not exists raw_payload jsonb;
 create index if not exists idx_match_results_override_flags on match_results(manual_override, locked);
+```
+
+```sql
+-- supabase/migrations/20260611_manual_scoring_controls.sql
+-- agrega qualified_team, decided_by_penalties, posiciones finales,
+-- mejores terceros, premios individuales y aliases de nombres.
 ```
 
 ## Render
@@ -75,63 +79,36 @@ Variables recomendadas:
 ADMIN_PASSWORD=mima2026
 NODE_ENV=production
 ENABLE_CRON=false
-SYNC_SECRET=
 SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
-WORLD_CUP_GAMES_URL=https://worldcup26.ir/get/games
-WORLD_CUP_GROUPS_URL=https://worldcup26.ir/get/groups
-RAPIDAPI_KEY=
-RAPIDAPI_HOST=v3.football.api-sports.io
-TOP_SCORERS_SYNC_HOURS=12
 ```
 
-En produccion se recomienda `ENABLE_CRON=false` porque Render Free puede dormir el servicio. Usa un cron externo para despertar la app y ejecutar la sincronizacion.
+La app no usa sincronizacion automatica de resultados. Los resultados, clasificados, posiciones de grupo, mejores terceros y premios se cargan desde `/admin`.
 
-## Cron externo
+## Resultados manuales
 
-Endpoint protegido:
+Fuente unica de verdad:
 
-```bash
-POST https://TU_APP.onrender.com/api/cron/sync
-```
+- `match_results`
+- `predictions`
+- `group_predictions`
+- `individual_predictions`
+- controles manuales guardados desde `/admin`
 
-Header recomendado:
+`ENABLE_CRON` debe quedar en `false`. Las variables `WORLD_CUP_GAMES_URL`, `WORLD_CUP_GROUPS_URL`, `RAPIDAPI_KEY` y `RAPIDAPI_HOST` ya no son necesarias.
 
-```bash
-x-sync-secret: TU_SYNC_SECRET
-```
-
-Ejemplo con `curl`:
-
-```bash
-curl -X POST "https://TU_APP.onrender.com/api/cron/sync" \
-  -H "x-sync-secret: TU_SYNC_SECRET"
-```
-
-Tambien acepta query param para servicios que no permiten headers:
-
-```bash
-https://TU_APP.onrender.com/api/cron/sync?secret=TU_SYNC_SECRET
-```
-
-En cron-job.org crea un monitor tipo HTTP POST cada 5 o 10 minutos hacia `/api/cron/sync`. En GitHub Actions, puedes programar un workflow con `schedule` y ejecutar el `curl` anterior usando `SYNC_SECRET` como secret del repo.
-
-La sincronizacion automatica actualiza partidos y recalcula puntajes. No actualiza goleadores por defecto para evitar gastar requests de API-Football/RapidAPI.
-
-## API-Football / RapidAPI
-
-Los goleadores se sincronizan solo si se manda `includeTopScorers=true` desde el admin y existe `RAPIDAPI_KEY`.
-
-`TOP_SCORERS_SYNC_HOURS=12` limita internamente la consulta para no gastar requests en cada sync. Si se intenta antes de tiempo, queda registrado como `skipped` en logs.
+Las rutas antiguas de sync quedan desactivadas y responden que la carga es manual.
 
 ## Correcciones manuales
 
-Los partidos tienen campos de proteccion:
+Los partidos tienen campos de proteccion y cierre:
 
 - `manual_override`: el admin corrigio el partido manualmente.
-- `locked`: el partido queda blindado contra sync automatica.
+- `locked`: el partido queda blindado para cambios accidentales.
+- `qualified_team`: equipo clasificado/ganador de la llave en eliminatorias.
+- `decided_by_penalties`: marca informativa si la llave se definio por penales.
 
-Si cualquiera de esos campos esta en `true`, la sincronizacion automatica no sobrescribe equipos, goles, estado ni fecha del partido. El panel `/admin` permite corregir marcador, estado y bloqueo.
+En fase de grupos los empates cuentan como empate. En eliminatorias, si el marcador queda empatado, el admin debe seleccionar `qualified_team` para que el scoring asigne puntos de ganador/clasificado.
 
 ## Seed desde Excel
 
@@ -157,14 +134,26 @@ npm run data:update-schedule-samuel
 
 El script usa `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` desde `.env`, actualiza `match_results.match_date`, reemplaza solo los datos del participante `id=2` y recalcula la tabla.
 
+## Correcciones Jorge/Alejandro
+
+Para aplicar las correcciones confirmadas en las capturas de Jorge Marquez y Alejandro Marquez:
+
+```bash
+npm run data:fix-marquez
+```
+
+El script toma los valores de `supabase/seed.sql`, hace `upsert` solo para esos dos participantes y recalcula la tabla.
+
 ## Admin
 
 La ruta `/admin` permite:
 
-- Ver logs de sincronizacion.
-- Ejecutar sync manual.
-- Ejecutar sync de goleadores solo cuando se pida.
+- Ver logs de admin.
 - Recalcular tabla.
-- Corregir resultados manualmente y bloquearlos.
+- Corregir resultados manualmente.
+- Seleccionar equipo clasificado en eliminatorias.
+- Confirmar posiciones finales de grupo.
+- Confirmar los 8 mejores terceros.
+- Confirmar premios individuales.
 - Ver tabla de posiciones.
 - Cambiar password admin.
