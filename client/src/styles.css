@@ -1971,15 +1971,17 @@ main.pt-16 > section.relative h2.font-display {
     gap: 10px;
   }
 
+  .leaderboard-table:has(.leaderboard-stat-col) {
+    min-width: 0;
+  }
+
   .leaderboard-header {
     display: none;
   }
 
   .leaderboard-row {
     grid-template-columns: 54px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "position player points"
-      "recent recent recent";
+    grid-template-areas: "position player points";
     gap: 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -2005,12 +2007,11 @@ main.pt-16 > section.relative h2.font-display {
   }
 
   .leaderboard-row > span:nth-child(4) {
-    grid-area: recent;
-    flex-wrap: wrap;
-    padding-top: 2px;
+    display: none;
   }
 
   .leaderboard-row:has(.leaderboard-metric) {
+    grid-template-columns: 54px minmax(0, 1fr) auto;
     grid-template-areas: "position player points";
   }
 

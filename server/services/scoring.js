@@ -144,6 +144,33 @@ function predictionVerdict(prediction, match, scored) {
   return "miss";
 }
 
+function predictionHitStats(prediction, match) {
+  if (!prediction || !matchFinished(match)) return { exact: false, partial: false };
+
+  const exact =
+    prediction.predicted_home_goals === match.home_goals &&
+    prediction.predicted_away_goals === match.away_goals;
+  if (exact) return { exact: true, partial: false };
+
+  if (prediction.stage === "group") {
+    const predictedOutcome = outcome(prediction.predicted_home_goals, prediction.predicted_away_goals);
+    const actualOutcome = outcome(match.home_goals, match.away_goals);
+    return { exact: false, partial: predictedOutcome != null && predictedOutcome === actualOutcome };
+  }
+
+  const predictedWinner = winnerName(
+    prediction.predicted_home_goals,
+    prediction.predicted_away_goals,
+    prediction.predicted_home_team,
+    prediction.predicted_away_team
+  );
+  const actualWinner = winnerName(match.home_goals, match.away_goals, match.home_team, match.away_team);
+  return {
+    exact: false,
+    partial: predictedWinner !== "draw" && sameTeam(predictedWinner, actualWinner)
+  };
+}
+
 function scorePrediction(prediction, match) {
   if (!match || match.status !== "finished" || match.home_goals == null || match.away_goals == null) {
     return { points: 0, reason: "Pendiente" };
@@ -232,6 +259,56 @@ function scorePrediction(prediction, match) {
   return { points: 0, reason: "Sin regla" };
 }
 
+export function evaluateMatchPrediction(prediction, match) {
+  if (!prediction) {
+    return {
+      status: "sin_prediccion",
+      label: "Sin predicción",
+      icon: "-",
+      points: 0,
+      reason: "Sin predicción"
+    };
+  }
+
+  const scored = scorePrediction(prediction, match);
+  if (!matchFinished(match)) {
+    return {
+      status: "pendiente",
+      label: "Pendiente",
+      icon: "-",
+      points: 0,
+      reason: scored.reason
+    };
+  }
+
+  const hitStats = predictionHitStats(prediction, match);
+  if (hitStats.exact) {
+    return {
+      status: "exacto",
+      label: "Exacto",
+      icon: "target",
+      points: scored.points,
+      reason: scored.reason
+    };
+  }
+  if (hitStats.partial || scored.points > 0) {
+    return {
+      status: "parcial",
+      label: "Parcial",
+      icon: "check",
+      points: scored.points,
+      reason: scored.reason
+    };
+  }
+  return {
+    status: "fallo",
+    label: "Falló",
+    icon: "x",
+    points: 0,
+    reason: scored.reason
+  };
+}
+
 async function getMatchMap() {
   const client = requireSupabase();
   const { data, error } = await client.from("match_results").select("*");
@@ -252,12 +329,18 @@ export async function calculateParticipantScore(participantId, providedMatches =
   const state = {
     total: 0,
     byCategory: {},
-    details: []
+    details: [],
+    exactHits: 0,
+    partialHits: 0,
+    matchesPlayed: [...matchMap.values()].filter(matchFinished).length
   };
 
   for (const prediction of predictions || []) {
     const match = matchMap.get(prediction.match_id);
     const scored = scorePrediction(prediction, match);
+    const hitStats = predictionHitStats(prediction, match);
+    if (hitStats.exact) state.exactHits += 1;
+    else if (hitStats.partial) state.partialHits += 1;
     state.total += scored.points;
     state.byCategory[prediction.stage] = Number(((state.byCategory[prediction.stage] || 0) + scored.points).toFixed(2));
     state.details.push({
@@ -334,6 +417,9 @@ export async function getLeaderboard() {
       id: participant.id,
       name: participant.name,
       totalPoints: Number(cached?.total_points ?? score.total ?? 0),
+      exactHits: score.exactHits,
+      partialHits: score.partialHits,
+      matchesPlayed: score.matchesPlayed,
       byCategory: score.byCategory,
       recent: score.details
         .filter((item) => item.type === "match")
@@ -348,7 +434,12 @@ export async function getLeaderboard() {
     });
   }
 
-  rows.sort((a, b) => b.totalPoints - a.totalPoints || a.name.localeCompare(b.name));
+  rows.sort((a, b) =>
+    b.totalPoints - a.totalPoints ||
+    b.exactHits - a.exactHits ||
+    b.partialHits - a.partialHits ||
+    a.name.localeCompare(b.name)
+  );
   return rows.map((row, index) => ({ ...row, position: index + 1 }));
 }
 
@@ -403,6 +494,14 @@ export async function getParticipantDetail(participantId) {
     .maybeSingle();
   assertNoError(individualError, "Leer predicciones individuales");
 
+  const { data: topScorers, error: topScorersError } = await client
+    .from("top_scorers_cache")
+    .select("player_name,goals")
+    .order("goals", { ascending: false })
+    .order("player_name")
+    .limit(12);
+  assertNoError(topScorersError, "Leer goleadores para premios");
+
   const { data: groups, error: groupsError } = await client
     .from("group_predictions")
     .select("*")
@@ -436,12 +535,29 @@ export async function getParticipantDetail(participantId) {
       rows: group.rows
     }));
 
+  const leaderGoals = Math.max(0, ...((topScorers || []).map((row) => Number(row.goals || 0))));
+  const topScorerLeaders = (topScorers || []).filter((row) => Number(row.goals || 0) === leaderGoals && leaderGoals > 0);
+  const topScorerStatus = (() => {
+    const pick = individual?.top_scorer || null;
+    if (!pick || !topScorerLeaders.length) return { status: "pending", labelStatus: "En juego", points: 0 };
+    const isLeading = topScorerLeaders.some((row) => sameTeam(row.player_name, pick));
+    return isLeading
+      ? { status: "hit", labelStatus: "Gano", points: 5 }
+      : { status: "miss", labelStatus: "Perdio", points: 0 };
+  })();
+
   return {
     participant,
     totalPoints: breakdown.total,
     breakdown,
     predictions: enrichedPredictions,
     individual,
+    individualAwards: [
+      { key: "top_scorer", label: "Goleador", value: individual?.top_scorer || null, ...topScorerStatus },
+      { key: "best_player", label: "Mejor jugador", value: individual?.best_player || null, status: "pending", labelStatus: "En juego", points: 0 },
+      { key: "best_goalkeeper", label: "Mejor arquero", value: individual?.best_goalkeeper || null, status: "pending", labelStatus: "En juego", points: 0 }
+    ],
+    topScorerLeaders,
     groups: enrichedGroups,
     actualGroups
   };

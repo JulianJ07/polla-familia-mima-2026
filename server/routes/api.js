@@ -8,7 +8,7 @@ import {
   requireSupabase,
   setSetting
 } from "../db/supabase.js";
-import { getLeaderboard, getParticipantDetail, recalculateAllScores } from "../services/scoring.js";
+import { evaluateMatchPrediction, getLeaderboard, getParticipantDetail, recalculateAllScores } from "../services/scoring.js";
 import { syncExternalData } from "../services/syncService.js";
 
 function asyncHandler(fn) {
@@ -51,11 +51,6 @@ function optionalInteger(value) {
   if (value === "" || value == null) return null;
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 ? number : undefined;
-}
-
-function optionalText(value) {
-  if (value === "" || value == null) return null;
-  return String(value).trim();
 }
 
 function optionalDate(value) {
@@ -244,6 +239,60 @@ export function createApiRouter(io) {
     res.json({ rows });
   }));
 
+  router.get("/matches/:matchId/predictions", asyncHandler(async (req, res) => {
+    const client = requireSupabase();
+    const matchId = String(req.params.matchId);
+    const { data: match, error: matchError } = await client
+      .from("match_results")
+      .select("*")
+      .eq("match_id", matchId)
+      .maybeSingle();
+    assertNoError(matchError, "Leer partido");
+    if (!match) return res.status(404).json({ error: "Partido no encontrado." });
+
+    const [{ data: participants, error: participantError }, { data: predictions, error: predictionError }] =
+      await Promise.all([
+        client.from("participants").select("id,name").order("name"),
+        client.from("predictions").select("*").eq("match_id", matchId)
+      ]);
+    assertNoError(participantError, "Leer participantes");
+    assertNoError(predictionError, "Leer predicciones del partido");
+
+    const predictionMap = new Map((predictions || []).map((prediction) => [prediction.participant_id, prediction]));
+    const rows = (participants || []).map((participant) => {
+      const prediction = predictionMap.get(participant.id) || null;
+      const result = evaluateMatchPrediction(prediction, match);
+      return {
+        participantId: participant.id,
+        name: participant.name,
+        prediction: prediction
+          ? {
+              matchId: prediction.match_id,
+              homeTeam: prediction.predicted_home_team,
+              awayTeam: prediction.predicted_away_team,
+              homeGoals: prediction.predicted_home_goals,
+              awayGoals: prediction.predicted_away_goals,
+              score: `${prediction.predicted_home_goals ?? "-"}-${prediction.predicted_away_goals ?? "-"}`
+            }
+          : null,
+        status: result.status,
+        statusLabel: result.label,
+        icon: result.icon,
+        points: result.points,
+        reason: result.reason
+      };
+    });
+
+    res.json({
+      match: {
+        ...match,
+        stageLabel: stageLabel(match.stage),
+        score: match.home_goals == null ? null : `${match.home_goals}-${match.away_goals}`
+      },
+      rows
+    });
+  }));
+
   router.get("/bracket", asyncHandler(async (_req, res) => {
     const client = requireSupabase();
     const knockoutStages = ["r32", "r16", "qf", "sf", "third", "final"];
@@ -322,10 +371,6 @@ export function createApiRouter(io) {
       else updates.status = status;
     }
 
-    for (const key of ["home_team", "away_team"]) {
-      if (hasOwn(body, key)) updates[key] = optionalText(body[key]);
-    }
-
     if (hasOwn(body, "match_date")) {
       const parsed = optionalDate(body.match_date);
       if (parsed === undefined) errors.push("Fecha del partido invalida.");
@@ -346,7 +391,7 @@ export function createApiRouter(io) {
     assertNoError(readError, "Leer partido");
     if (!existing) return res.status(404).json({ error: "Partido no encontrado." });
 
-    const correctionFields = ["home_goals", "away_goals", "status", "home_team", "away_team", "match_date"];
+    const correctionFields = ["home_goals", "away_goals", "status", "match_date"];
     const changedMatchData = correctionFields.some((field) => hasOwn(updates, field) && valuesDiffer(updates[field], existing[field], field));
     if (changedMatchData) updates.manual_override = true;
 

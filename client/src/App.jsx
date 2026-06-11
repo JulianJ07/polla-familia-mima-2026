@@ -18,6 +18,7 @@ import {
   Shield,
   Swords,
   Table2,
+  Target,
   Trophy,
   UserRound,
   XCircle
@@ -37,6 +38,18 @@ const stages = [
   ["sf", "Semis"],
   ["third", "3er puesto"],
   ["final", "Final"]
+];
+
+const participantFilters = [
+  ["all", "Todos los partidos"],
+  ["group", "Fase de grupos"],
+  ["r32", "Ronda 32"],
+  ["r16", "Octavos"],
+  ["qf", "Cuartos"],
+  ["sf", "Semifinales"],
+  ["final", "Final"],
+  ["individual", "Premiaciones individuales"],
+  ["bracket", "Llaves"]
 ];
 
 const navItems = [
@@ -95,6 +108,27 @@ function formatColombiaDate(value) {
   }).format(date);
 }
 
+function formatColombiaDateTime(value) {
+  if (!value) return "Sin fecha";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+  const parts = new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const period = String(byType.dayPeriod || "")
+    .toLowerCase()
+    .replace(/\s?a\.\s?m\./i, "a.m.")
+    .replace(/\s?p\.\s?m\./i, "p.m.");
+  return `${byType.day} ${byType.month} ${byType.year}, ${byType.hour}:${byType.minute} ${period}`.trim();
+}
+
 function colombiaParts(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -150,27 +184,28 @@ function AnimatedNumber({ value }) {
 
 function StatusPill({ status }) {
   const config = {
-    finished: ["Finalizado", "bg-mint/15 text-mint"],
-    live: ["En vivo", "bg-red-400/15 text-red-200"],
-    scheduled: ["Programado", "bg-white/10 text-muted"]
-  }[status] || ["Pendiente", "bg-white/10 text-muted"];
-  return <span className={cx("rounded-full px-2.5 py-1 text-xs font-bold", config[1])}>{config[0]}</span>;
+    finished: ["Finalizado", "status-finished"],
+    live: ["En vivo", "status-live"],
+    scheduled: ["Programado", "status-scheduled"]
+  }[status] || ["Pendiente", "status-scheduled"];
+  return <span className={cx("status-pill", config[1])}>{config[0]}</span>;
 }
 
 function AppShell({ activeView, setActiveView, meta, onRefresh, refreshing, children }) {
   return (
-    <div className="min-h-screen bg-night text-ink">
-      <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-night/86 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
-          <button className="grid size-10 place-items-center rounded-md border border-gold/35 bg-gold/10 text-gold shadow-glow" type="button">
+    <div className="app-shell min-h-screen text-ink">
+      <header className="app-header">
+        <div className="app-header-inner">
+          <button className="brand-mark" type="button" aria-label="Torneo">
             <Trophy size={22} />
           </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-display text-2xl tracking-normal text-white sm:text-3xl">Polla Familia Mima 2026</h1>
-            <p className="truncate text-xs font-semibold text-muted">{meta.currentPhase || "Previa del torneo"}</p>
+          <div className="brand-copy">
+            <span className="brand-kicker">Triple ola 2026</span>
+            <h1 className="brand-title">Polla Familia Mima 2026</h1>
+            <p className="brand-subtitle">{meta.currentPhase || "Previa del torneo"}</p>
           </div>
           <button
-            className="icon-button"
+            className="icon-button header-action"
             type="button"
             onClick={onRefresh}
             title="Actualizar"
@@ -179,7 +214,7 @@ function AppShell({ activeView, setActiveView, meta, onRefresh, refreshing, chil
             <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
           </button>
           <button
-            className={cx("icon-button", activeView === "admin" && "border-gold/50 text-gold")}
+            className={cx("icon-button header-action", activeView === "admin" && "icon-button-active")}
             type="button"
             onClick={() => setActiveView("admin")}
             title="Admin"
@@ -190,8 +225,8 @@ function AppShell({ activeView, setActiveView, meta, onRefresh, refreshing, chil
         </div>
       </header>
 
-      <aside className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-night/92 px-3 py-2 backdrop-blur-xl lg:bottom-auto lg:right-auto lg:top-16 lg:h-[calc(100vh-4rem)] lg:w-20 lg:border-r lg:border-t-0 lg:px-2 lg:py-4">
-        <nav className="mx-auto grid max-w-lg grid-cols-4 gap-2 lg:flex lg:h-full lg:flex-col lg:items-center">
+      <aside className="app-nav-shell">
+        <nav className="app-nav" aria-label="Navegacion principal">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeView === item.id;
@@ -211,7 +246,7 @@ function AppShell({ activeView, setActiveView, meta, onRefresh, refreshing, chil
         </nav>
       </aside>
 
-      <main className="pt-16 lg:pl-20">{children}</main>
+      <main className="app-main">{children}</main>
     </div>
   );
 }
@@ -220,40 +255,45 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
   const lastUpdate = leaderboard[0]?.lastCalculated || meta.lastCalculated;
   return (
     <>
-      <section className="relative min-h-[calc(100svh-4rem)] overflow-hidden">
-        <img className="absolute inset-0 h-full w-full object-cover opacity-50" src={stadiumImage} alt="" />
-        <div className="absolute inset-0 bg-gradient-to-b from-night/45 via-night/88 to-night" />
-        <div className="relative mx-auto flex min-h-[calc(100svh-4rem)] max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <section className="hero-section">
+        <img className="hero-stadium" src={stadiumImage} alt="" />
+        <div className="hero-overlay" />
+        <div className="hero-content">
+          <div className="hero-heading">
             <div>
-              <p className="text-xs font-extrabold uppercase text-mint">Tabla de posiciones</p>
-              <h2 className="font-display text-5xl tracking-normal text-white sm:text-6xl">Marcador familiar</h2>
+              <p className="eyebrow">Tabla de posiciones</p>
+              <h2 className="hero-title">Marcador familiar</h2>
             </div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-muted">
+            <div className="hero-meta-card">
               <CalendarClock size={16} />
-              <span>{timeAgo(lastUpdate)}</span>
+              <span>Actualizado {timeAgo(lastUpdate)}</span>
             </div>
           </div>
 
           <div className="leaderboard-shell">
-            <div className="min-w-[720px]">
-              <div className="grid grid-cols-[72px_minmax(220px,1fr)_130px_210px] items-center gap-3 border-b border-white/10 px-4 py-3 text-xs font-extrabold uppercase text-muted">
+            <div className="leaderboard-table">
+              <div className="leaderboard-header">
                 <span>Posicion</span>
                 <span>Nombre</span>
                 <span>Puntos</span>
-                <span>Ultimos partidos</span>
+                <span className="leaderboard-stat-col">Exactos</span>
+                <span className="leaderboard-stat-col">Parciales</span>
+                <span className="leaderboard-stat-col">Jugados</span>
               </div>
               <div className="divide-y divide-white/8">
-                {leaderboard.map((row) => (
-                  <button
+                {leaderboard.map((row, index) => (
+                  <motion.button
                     key={row.id}
                     type="button"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.24, delay: Math.min(index, 8) * 0.025 }}
                     className={cx(
                       "leaderboard-row",
                       row.position === 1 && "rank-gold",
                       row.position === 2 && "rank-silver",
                       row.position === 3 && "rank-bronze",
-                      selectedParticipant === row.id && "ring-1 ring-mint/60"
+                      selectedParticipant === row.id && "leaderboard-row-selected"
                     )}
                     onClick={() => onSelectParticipant(row.id)}
                   >
@@ -266,12 +306,12 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
                       )}
                     </span>
                     <span className="flex min-w-0 items-center gap-3">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white/10 font-black text-white">
+                      <span className="player-avatar">
                         {row.name.slice(0, 1)}
                       </span>
                       <span className="truncate text-left font-extrabold text-white">{row.name}</span>
                       {row.position === 12 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gold/10 px-2 py-1 text-xs font-black text-gold">
+                        <span className="special-chip">
                           <Armchair size={13} /> Doceavo
                         </span>
                       )}
@@ -279,22 +319,19 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
                     <span className="font-display text-4xl text-gold">
                       <AnimatedNumber value={row.totalPoints} />
                     </span>
-                    <span className="flex gap-1.5">
-                      {row.recent.length ? (
-                        row.recent.map((chip) => (
-                          <span
-                            key={chip.matchId}
-                            className={cx("result-chip", chip.ok ? "bg-mint/18 text-mint" : "bg-white/10 text-muted")}
-                            title={`${chip.label}: ${chip.points} pts`}
-                          >
-                            {chip.ok ? <CheckCircle2 size={15} /> : <XCircle size={15} />}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted">Sin partidos</span>
-                      )}
+                    <span className="leaderboard-metric leaderboard-stat-col">
+                      <strong>{row.exactHits || 0}</strong>
+                      <small>exactos</small>
                     </span>
-                  </button>
+                    <span className="leaderboard-metric leaderboard-stat-col">
+                      <strong>{row.partialHits || 0}</strong>
+                      <small>parciales</small>
+                    </span>
+                    <span className="leaderboard-metric leaderboard-stat-col">
+                      <strong>{row.matchesPlayed || 0}</strong>
+                      <small>jugados</small>
+                    </span>
+                  </motion.button>
                 ))}
               </div>
             </div>
@@ -319,7 +356,15 @@ function CategoryPodium({ leaderboard }) {
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         {leaderboard.map((row) => (
-          <div key={row.id} className="stat-tile">
+          <div
+            key={row.id}
+            className={cx(
+              "stat-tile podium-tile",
+              row.position === 1 && "podium-gold",
+              row.position === 2 && "podium-silver",
+              row.position === 3 && "podium-bronze"
+            )}
+          >
             <span className="text-xs font-black uppercase text-muted">#{row.position}</span>
             <strong className="truncate text-lg text-white">{row.name}</strong>
             <span className="font-display text-4xl text-gold">{formatPoints(row.totalPoints)}</span>
@@ -331,6 +376,8 @@ function CategoryPodium({ leaderboard }) {
 }
 
 function ParticipantPanel({ detail }) {
+  const [detailFilter, setDetailFilter] = useState("all");
+
   if (!detail) {
     return (
       <div className="panel grid min-h-44 place-items-center text-center text-sm font-semibold text-muted">
@@ -341,12 +388,15 @@ function ParticipantPanel({ detail }) {
   }
 
   const predictions = detail.predictions || [];
+  const activeMatchFilter = ["all", "group", "r32", "r16", "qf", "sf", "third", "final"].includes(detailFilter);
+  const visiblePredictions =
+    detailFilter === "all" ? predictions : activeMatchFilter ? predictions.filter((item) => item.stage === detailFilter) : [];
   const groups = (detail.groups || []).reduce((acc, row) => {
     acc[row.group_code] ||= [];
     acc[row.group_code].push(row);
     return acc;
   }, {});
-  const stageBuckets = predictions.reduce((acc, item) => {
+  const stageBuckets = visiblePredictions.reduce((acc, item) => {
     const label = item.stageLabel || item.stage;
     acc[label] ||= [];
     acc[label].push(item);
@@ -384,94 +434,216 @@ function ParticipantPanel({ detail }) {
         </div>
       </div>
 
-      <div className="prediction-section">
-        <div className="prediction-section-title">
-          <h4>Grupos</h4>
-          <span>verde si coincide la posicion actual/final</span>
-        </div>
-        <div className="group-prediction-grid">
-          {Object.entries(groups).map(([groupCode, rows]) => (
-            <article key={groupCode} className="group-prediction-card">
-              <div className="mb-2 flex items-center justify-between">
-                <strong>Grupo {groupCode}</strong>
-                <span className="text-xs font-black text-muted">
-                  {rows[0]?.group_finished_matches || 0}/{rows[0]?.group_total_matches || 6}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {rows.map((row) => {
-                  const groupHasResults = Number(row.group_finished_matches || 0) > 0;
-                  return (
-                    <div key={`${groupCode}-${row.predicted_position}`} className={cx("prediction-row", `prediction-${row.verdict}`)}>
-                      <span className="prediction-rank">#{row.predicted_position}</span>
-                      <span className="min-w-0 flex-1 truncate font-extrabold text-white">{row.team_code}</span>
-                      <span className="text-right text-xs font-bold text-muted">
-                        {groupHasResults && row.actual_position ? `real #${row.actual_position} - ${row.actual_points} pts` : "pendiente"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-          ))}
-        </div>
+      <div className="participant-filter-tabs">
+        {participantFilters.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={cx("participant-filter-button", detailFilter === id && "participant-filter-button-active")}
+            onClick={() => setDetailFilter(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {detail.individual && (
+      {detailFilter === "group" && <GroupPredictionSection groups={groups} />}
+      {detailFilter === "individual" && <IndividualAwardsPanel detail={detail} />}
+      {detailFilter === "bracket" && <ParticipantBracketPreview predictions={predictions} />}
+      {activeMatchFilter && (
         <div className="prediction-section">
           <div className="prediction-section-title">
-            <h4>Individuales</h4>
+            <h4>Partidos</h4>
+            <span>{detailFilter === "all" ? "todos los marcadores" : "filtro activo"}</span>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <div className="mini-stat">
-              <span>{detail.individual.top_scorer || "-"}</span>
-              <small>goleador</small>
-            </div>
-            <div className="mini-stat">
-              <span>{detail.individual.best_player || "-"}</span>
-              <small>mejor jugador</small>
-            </div>
-            <div className="mini-stat">
-              <span>{detail.individual.best_goalkeeper || "-"}</span>
-              <small>mejor arquero</small>
-            </div>
-          </div>
+          <PredictionList stageBuckets={stageBuckets} />
         </div>
       )}
+    </div>
+  );
+}
 
-      <div className="prediction-section">
-        <div className="prediction-section-title">
-          <h4>Partidos</h4>
-          <span>todos los marcadores del participante</span>
+function GroupPredictionSection({ groups }) {
+  return (
+    <div className="prediction-section">
+      <div className="prediction-section-title">
+        <h4>Grupos</h4>
+        <span>verde si coincide la posicion actual/final</span>
+      </div>
+      <div className="group-prediction-grid">
+        {Object.entries(groups).map(([groupCode, rows]) => (
+          <article key={groupCode} className="group-prediction-card">
+            <div className="mb-2 flex items-center justify-between">
+              <strong>Grupo {groupCode}</strong>
+              <span className="text-xs font-black text-muted">
+                {rows[0]?.group_finished_matches || 0}/{rows[0]?.group_total_matches || 6}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {rows.map((row) => {
+                const groupHasResults = Number(row.group_finished_matches || 0) > 0;
+                return (
+                  <div key={`${groupCode}-${row.predicted_position}`} className={cx("prediction-row", `prediction-${row.verdict}`)}>
+                    <span className="prediction-rank">#{row.predicted_position}</span>
+                    <span className="min-w-0 flex-1 truncate font-extrabold text-white">{row.team_code}</span>
+                    <span className="text-right text-xs font-bold text-muted">
+                      {groupHasResults && row.actual_position ? `real #${row.actual_position} - ${row.actual_points} pts` : "pendiente"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PredictionList({ stageBuckets }) {
+  const entries = Object.entries(stageBuckets);
+  if (!entries.length) {
+    return (
+      <div className="rounded-md border border-white/10 bg-white/6 p-4 text-sm font-bold text-muted">
+        No hay pronosticos en este filtro.
+      </div>
+    );
+  }
+
+  return (
+    <div className="prediction-stage-stack">
+      {entries.map(([label, items]) => (
+        <div key={label}>
+          <p className="mb-2 text-xs font-black uppercase text-mint">{label}</p>
+          <div className="prediction-list">
+            {items.map((item) => (
+              <article key={item.match_id} className={cx("prediction-card", `prediction-${item.verdict}`)}>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-black text-muted">{item.match_id}</span>
+                    <span className="text-xs font-bold text-muted">{formatColombiaDate(item.match_date)}</span>
+                  </div>
+                  <p className="mt-1 truncate font-extrabold text-white">
+                    {item.predicted_home_team || item.home_team || "Local"} vs {item.predicted_away_team || item.away_team || "Visitante"}
+                  </p>
+                  <p className="truncate text-xs font-semibold text-muted">
+                    Real: {item.home_team || "Pendiente"} vs {item.away_team || "Pendiente"} - {item.actual_score || "sin resultado"}
+                  </p>
+                </div>
+                <div className="prediction-score">
+                  <strong>{item.predicted_score}</strong>
+                  <small>{item.reason}</small>
+                  <span>{formatPoints(item.points)} pts</span>
+                </div>
+              </article>
+            ))}
+          </div>
         </div>
-        <div className="prediction-stage-stack">
-          {Object.entries(stageBuckets).map(([label, items]) => (
-            <div key={label}>
-              <p className="mb-2 text-xs font-black uppercase text-mint">{label}</p>
-              <div className="prediction-list">
-                {items.map((item) => (
-                  <article key={item.match_id} className={cx("prediction-card", `prediction-${item.verdict}`)}>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-black text-muted">{item.match_id}</span>
-                        <span className="text-xs font-bold text-muted">{formatColombiaDate(item.match_date)}</span>
-                      </div>
-                      <p className="mt-1 truncate font-extrabold text-white">
-                        {item.predicted_home_team || item.home_team || "Local"} vs {item.predicted_away_team || item.away_team || "Visitante"}
-                      </p>
-                      <p className="truncate text-xs font-semibold text-muted">
-                        Real: {item.home_team || "Pendiente"} vs {item.away_team || "Pendiente"} - {item.actual_score || "sin resultado"}
-                      </p>
-                    </div>
-                    <div className="prediction-score">
-                      <strong>{item.predicted_score}</strong>
-                      <small>{item.reason}</small>
-                      <span>{formatPoints(item.points)} pts</span>
-                    </div>
-                  </article>
-                ))}
+      ))}
+    </div>
+  );
+}
+
+function IndividualAwardsPanel({ detail }) {
+  const awards = detail.individualAwards || [];
+  const leaders = detail.topScorerLeaders || [];
+  return (
+    <div className="prediction-section">
+      <div className="prediction-section-title">
+        <h4>Premiaciones individuales</h4>
+        <span>sin fotos, solo estado de la apuesta</span>
+      </div>
+      <div className="individual-awards-grid">
+        {awards.map((award) => {
+          const label = award.status === "hit" ? "Gano" : award.status === "miss" ? "Perdio" : "En juego";
+          return (
+            <article key={award.key} className={cx("individual-award-card", `award-state-${award.status}`)}>
+              <p className="text-xs font-black uppercase text-muted">{award.label}</p>
+              <strong className="truncate text-white">{award.value || "-"}</strong>
+              <span className="individual-award-status">{label}</span>
+              <small>{formatPoints(award.points || 0)} pts</small>
+            </article>
+          );
+        })}
+      </div>
+      {!!leaders.length && (
+        <div className="mt-3 rounded-md border border-white/10 bg-white/6 p-3 text-xs font-bold text-muted">
+          Lider goleador actual: {leaders.map((player) => `${player.player_name} (${player.goals})`).join(", ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function predictionToBracketMatch(item) {
+  return {
+    match_id: item.match_id,
+    home_team: item.predicted_home_team || "Local",
+    away_team: item.predicted_away_team || "Visitante",
+    home_goals: item.predicted_home_goals,
+    away_goals: item.predicted_away_goals,
+    status: item.status || "scheduled",
+    match_date: item.match_date
+  };
+}
+
+function ParticipantBracketPreview({ predictions }) {
+  const byStage = predictions
+    .filter((item) => ["r32", "r16", "qf", "sf", "third", "final"].includes(item.stage))
+    .reduce((acc, item) => {
+      acc[item.stage] ||= [];
+      acc[item.stage].push(predictionToBracketMatch(item));
+      return acc;
+    }, {});
+
+  const hasBracket = Object.values(byStage).some((items) => items.length);
+  if (!hasBracket) {
+    return (
+      <div className="prediction-section">
+        <div className="rounded-md border border-white/10 bg-white/6 p-4 text-sm font-bold text-muted">
+          Este participante no tiene llaves cargadas.
+        </div>
+      </div>
+    );
+  }
+
+  const columns = [
+    { label: "16avos", matches: (byStage.r32 || []).slice(0, 8), side: "left", stage: "r32" },
+    { label: "8avos", matches: (byStage.r16 || []).slice(0, 4), side: "left", stage: "r16" },
+    { label: "4tos", matches: (byStage.qf || []).slice(0, 2), side: "left", stage: "qf" },
+    { label: "Semis", matches: (byStage.sf || []).slice(0, 1), side: "left", stage: "sf" },
+    { label: "Semis", matches: (byStage.sf || []).slice(1, 2), side: "right", stage: "sf" },
+    { label: "4tos", matches: (byStage.qf || []).slice(2, 4), side: "right", stage: "qf" },
+    { label: "8avos", matches: (byStage.r16 || []).slice(4, 8), side: "right", stage: "r16" },
+    { label: "16avos", matches: (byStage.r32 || []).slice(8, 16), side: "right", stage: "r32" }
+  ];
+
+  return (
+    <div className="prediction-section">
+      <div className="prediction-section-title">
+        <h4>Llaves</h4>
+        <span>prediccion individual del participante</span>
+      </div>
+      <div className="participant-bracket-viewport">
+        <div className="tournament-bracket participant-tournament">
+          {columns.slice(0, 4).map((column) => (
+            <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
+          ))}
+          <div className="tournament-center">
+            <h3>FINAL</h3>
+            <div className="final-pedestal">
+              <div>
+                <h4>Final</h4>
+                <BracketMatchCard match={(byStage.final || [])[0]} compact />
+              </div>
+              <div>
+                <h4>3er puesto</h4>
+                <BracketMatchCard match={(byStage.third || [])[0]} compact />
               </div>
             </div>
+          </div>
+          {columns.slice(4).map((column) => (
+            <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
           ))}
         </div>
       </div>
@@ -482,6 +654,9 @@ function ParticipantPanel({ detail }) {
 function MatchesView({ matches, stage, setStage }) {
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [selectedMatchId, setSelectedMatchId] = useState(null);
+  const [matchDetail, setMatchDetail] = useState(null);
+  const [matchDetailBusy, setMatchDetailBusy] = useState(false);
   const groupOptions = useMemo(() => {
     const options = [...new Set(matches.map(groupCodeFromMatch).filter(Boolean))].sort();
     return ["all", ...options];
@@ -499,6 +674,36 @@ function MatchesView({ matches, stage, setStage }) {
   useEffect(() => {
     if (stage !== "group") setGroupFilter("all");
   }, [stage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedMatchId) {
+      setMatchDetail(null);
+      return undefined;
+    }
+
+    setMatchDetailBusy(true);
+    apiGet(`/matches/${encodeURIComponent(selectedMatchId)}/predictions`)
+      .then((data) => {
+        if (!cancelled) setMatchDetail(data);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setMatchDetail({
+            error: error.message,
+            match: matches.find((match) => match.match_id === selectedMatchId) || null,
+            rows: []
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setMatchDetailBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matches, selectedMatchId]);
 
   return (
     <section className="page-section">
@@ -537,10 +742,18 @@ function MatchesView({ matches, stage, setStage }) {
       )}
 
       <div className="match-grid">
-        {filtered.map((match) => (
-          <article key={match.match_id} className="match-card">
+        {filtered.map((match, index) => (
+          <motion.button
+            key={match.match_id}
+            type="button"
+            className={cx("match-card match-card-button", `match-${match.status || "scheduled"}`)}
+            onClick={() => setSelectedMatchId(match.match_id)}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, delay: Math.min(index, 10) * 0.018 }}
+          >
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-black uppercase text-mint">{match.stageLabel}</span>
+              <span className="match-stage">{match.stageLabel}</span>
               <StatusPill status={match.status} />
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs font-bold text-muted">
@@ -564,16 +777,112 @@ function MatchesView({ matches, stage, setStage }) {
                 <small>exactos</small>
               </div>
             </div>
-          </article>
+          </motion.button>
         ))}
       </div>
+
+      {selectedMatchId && (
+        <MatchDetailModal
+          detail={matchDetail}
+          busy={matchDetailBusy}
+          onClose={() => setSelectedMatchId(null)}
+        />
+      )}
     </section>
+  );
+}
+
+function MatchStatusIcon({ status }) {
+  if (status === "exacto") return <Target size={17} />;
+  if (status === "parcial") return <CheckCircle2 size={17} />;
+  if (status === "fallo") return <XCircle size={17} />;
+  return <Minus size={17} />;
+}
+
+function MatchDetailModal({ detail, busy, onClose }) {
+  const match = detail?.match;
+  const finished = match?.status === "finished" && match.home_goals != null && match.away_goals != null;
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <motion.div
+        className="match-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Detalle de pronosticos del partido"
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="match-detail-header">
+          <div className="min-w-0">
+            <p className="eyebrow">{match?.stageLabel || "Partido"}</p>
+            <h3 className="section-title truncate">
+              {match ? `${match.home_team || "Local"} vs ${match.away_team || "Visitante"}` : "Cargando partido"}
+            </h3>
+            <p className="text-sm font-bold text-muted">{formatColombiaDate(match?.match_date)}</p>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} title="Cerrar" aria-label="Cerrar">
+            <XCircle size={18} />
+          </button>
+        </div>
+
+        <div className="match-detail-score">
+          <span>{finished ? `${match.home_goals}-${match.away_goals}` : "Programado / sin resultado"}</span>
+          <small>{match?.match_id || ""}</small>
+        </div>
+
+        {detail?.error && (
+          <div className="rounded-md border border-red-300/20 bg-red-400/10 p-3 text-sm font-bold text-red-100">
+            {detail.error}
+          </div>
+        )}
+
+        <div className="match-detail-table-wrap">
+          <div className="match-detail-table">
+            <div className="match-detail-row match-detail-row-head">
+              <span>Participante</span>
+              <span>Pronostico</span>
+              <span>Resultado</span>
+              <span>Puntos</span>
+            </div>
+            {busy && (
+              <div className="match-detail-empty">Cargando pronosticos...</div>
+            )}
+            {!busy && (detail?.rows || []).map((row) => (
+              <div key={row.participantId} className={cx("match-detail-row", `match-prediction-${row.status}`)}>
+                <span className="truncate font-extrabold text-white">{row.name}</span>
+                <span className="min-w-0">
+                  {row.prediction ? (
+                    <>
+                      <strong>{row.prediction.score}</strong>
+                      <small>{row.prediction.homeTeam || "Local"} vs {row.prediction.awayTeam || "Visitante"}</small>
+                    </>
+                  ) : (
+                    <strong>-</strong>
+                  )}
+                </span>
+                <span className="match-detail-status">
+                  <MatchStatusIcon status={row.status} />
+                  {row.statusLabel}
+                </span>
+                <span className="font-display text-2xl text-gold">{formatPoints(row.points)}</span>
+              </div>
+            ))}
+            {!busy && !detail?.rows?.length && (
+              <div className="match-detail-empty">No hay datos de pronosticos para este partido.</div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 }
 
 function BracketMatchCard({ match, compact = false }) {
   return (
-    <article className={cx("bracket-match", compact && "bracket-match-center")}>
+    <article className={cx("bracket-match", compact && "bracket-match-center", `match-${match?.status || "scheduled"}`)}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-black text-muted">{match?.match_id || "Pendiente"}</span>
         <CircleDot size={14} className={match?.status === "live" ? "text-red-300" : "text-mint"} />
@@ -606,15 +915,15 @@ function BracketColumn({ label, matches, side, stage }) {
 }
 
 function BracketView({ bracket }) {
-  const [zoom, setZoom] = useState(0.76);
+  const [zoom, setZoom] = useState(0.72);
   const r32 = bracket.r32 || [];
   const r16 = bracket.r16 || [];
   const qf = bracket.qf || [];
   const sf = bracket.sf || [];
   const finalMatch = bracket.final?.[0];
   const thirdMatch = bracket.third?.[0];
-  const width = 1680;
-  const height = 1160;
+  const width = 1880;
+  const height = 1240;
 
   const columns = [
     { label: "16avos", matches: r32.slice(0, 8), side: "left", stage: "r32" },
@@ -628,7 +937,7 @@ function BracketView({ bracket }) {
   ];
 
   function nudgeZoom(delta) {
-    setZoom((current) => Math.min(1.25, Math.max(0.68, Number((current + delta).toFixed(2)))));
+    setZoom((current) => Math.min(1.2, Math.max(0.58, Number((current + delta).toFixed(2)))));
   }
 
   return (
@@ -712,12 +1021,12 @@ function AwardsView({ awards }) {
           </div>
           <div className="space-y-3">
             {(awards.topScorers || []).map((player, index) => (
-              <div key={player.player_name} className="scorer-row">
-                <span className="grid size-8 place-items-center rounded-md bg-white/10 font-black text-white">#{index + 1}</span>
+              <div key={player.player_name} className={cx("scorer-row", index === 0 && "scorer-row-leader")}>
+                <span className="scorer-rank">#{index + 1}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-extrabold text-white">{player.player_name}</p>
-                  <div className="mt-2 h-2 rounded-full bg-white/10">
-                    <div className="h-2 rounded-full bg-mint" style={{ width: `${(player.goals / leaderGoals) * 100}%` }} />
+                  <div className="scorer-meter">
+                    <div className="scorer-meter-value" style={{ width: `${(player.goals / leaderGoals) * 100}%` }} />
                   </div>
                 </div>
                 <strong className="font-display text-3xl text-gold">{player.goals}</strong>
@@ -763,7 +1072,7 @@ function AwardLine({ label, value, actual, points }) {
         <p className="text-xs font-black uppercase text-muted">{label}</p>
         <p className="truncate font-bold text-white">{value || "-"}</p>
       </div>
-      <span className={cx("rounded-full px-2 py-1 text-xs font-black", hit ? "bg-mint/15 text-mint" : "bg-white/10 text-muted")}>
+      <span className={cx("award-status", hit ? "award-status-hit" : "award-status-pending")}>
         {hit ? `+${points}` : "en juego"}
       </span>
     </div>
@@ -882,8 +1191,6 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     setMessage("");
     try {
       await adminPatch(`/admin/matches/${encodeURIComponent(selectedMatchId)}`, password, {
-        home_team: matchForm.home_team,
-        away_team: matchForm.away_team,
         home_goals: nullableNumber(matchForm.home_goals),
         away_goals: nullableNumber(matchForm.away_goals),
         status: matchForm.status,
@@ -1034,7 +1341,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
               </form>
             </>
           )}
-          {message && <p className="rounded-md border border-white/10 bg-white/6 p-3 text-sm font-semibold text-muted">{message}</p>}
+          {message && <p className="admin-message">{message}</p>}
         </div>
 
         <div className="panel">
@@ -1046,7 +1353,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
                   <p className="truncate font-bold text-white">#{row.position} {row.name}</p>
                   <p className="truncate text-xs text-muted">Ultimo calculo: {timeAgo(row.lastCalculated)}</p>
                 </div>
-                <span className="rounded-full bg-gold/10 px-2 py-1 text-sm font-black text-gold">{formatPoints(row.totalPoints)}</span>
+                <span className="points-pill">{formatPoints(row.totalPoints)}</span>
               </div>
             ))}
           </div>
@@ -1057,7 +1364,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="section-title">Resultado manual</h3>
               {selectedMatch && (
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase text-muted">
+                <span className="admin-context-pill">
                   {selectedMatch.stageLabel} - {selectedMatch.match_id}
                 </span>
               )}
@@ -1138,17 +1445,19 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
               <label className="field-label">
                 Equipo local
                 <input
-                  className="text-input"
+                  className="text-input read-only-input"
                   value={matchForm.home_team}
-                  onChange={(event) => setMatchForm((current) => ({ ...current, home_team: event.target.value }))}
+                  readOnly
+                  aria-readonly="true"
                 />
               </label>
               <label className="field-label">
                 Equipo visitante
                 <input
-                  className="text-input"
+                  className="text-input read-only-input"
                   value={matchForm.away_team}
-                  onChange={(event) => setMatchForm((current) => ({ ...current, away_team: event.target.value }))}
+                  readOnly
+                  aria-readonly="true"
                 />
               </label>
               <label className="field-label">
@@ -1230,10 +1539,11 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
             <h3 className="section-title mb-4">Logs de sincronizacion</h3>
             <div className="space-y-2">
               {logs.map((log) => (
-                <div key={log.id} className="detail-row">
+                <div key={log.id} className={cx("detail-row log-row", `log-${log.status || "unknown"}`)}>
                   <div className="min-w-0">
                     <p className="truncate font-bold text-white">{log.source}</p>
                     <p className="truncate text-xs text-muted">{log.message}</p>
+                    <p className="truncate text-xs font-bold text-muted">{formatColombiaDateTime(log.created_at)}</p>
                   </div>
                   <span className="text-xs font-black uppercase text-mint">{log.status}</span>
                 </div>
