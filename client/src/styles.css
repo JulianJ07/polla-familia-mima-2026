@@ -104,6 +104,7 @@ select {
 }
 
 .panel {
+  min-width: 0;
   border: 1px solid rgb(255 255 255 / 0.1);
   border-radius: 8px;
   background: rgb(20 24 41 / 0.78);
@@ -136,6 +137,137 @@ select {
   border-radius: 8px;
   background: rgb(255 255 255 / 0.055);
   padding: 10px 12px;
+}
+
+.participant-panel {
+  min-width: 0;
+}
+
+.participant-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.prediction-section {
+  margin-top: 16px;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+  padding-top: 14px;
+}
+
+.prediction-section-title {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.prediction-section-title h4 {
+  font-family: "Bebas Neue", Impact, sans-serif;
+  font-size: 26px;
+  line-height: 1;
+  color: white;
+}
+
+.prediction-section-title span {
+  color: #8892a4;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.group-prediction-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.group-prediction-card,
+.prediction-card {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.055);
+  padding: 10px;
+}
+
+.prediction-row {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border-left: 3px solid rgb(255 255 255 / 0.16);
+  border-radius: 8px;
+  background: rgb(10 14 26 / 0.42);
+  padding: 7px 9px;
+}
+
+.prediction-rank {
+  display: grid;
+  width: 34px;
+  height: 26px;
+  place-items: center;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.08);
+  color: #ffd700;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.prediction-stage-stack {
+  display: grid;
+  max-height: 560px;
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.prediction-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.prediction-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 10px;
+  border-left: 3px solid rgb(255 255 255 / 0.16);
+}
+
+.prediction-score {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.prediction-score strong {
+  color: #ffd700;
+  font-family: "Bebas Neue", Impact, sans-serif;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.prediction-score small,
+.prediction-score span {
+  color: #8892a4;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.prediction-hit {
+  border-left-color: #00c9a7;
+  background: rgb(0 201 167 / 0.11);
+}
+
+.prediction-miss {
+  border-left-color: #fb7185;
+  background: rgb(251 113 133 / 0.1);
+}
+
+.prediction-pending {
+  border-left-color: rgb(255 215 0 / 0.36);
 }
 
 .page-section {
@@ -270,34 +402,142 @@ select {
   font-weight: 800;
 }
 
-.bracket-scroll {
+.zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #8892a4;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.bracket-viewport {
   margin-inline: auto;
-  display: grid;
-  max-width: 1240px;
-  grid-auto-columns: 230px;
-  grid-auto-flow: column;
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 10px;
-}
-
-.bracket-column {
-  display: flex;
-  min-width: 230px;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.bracket-column h3 {
-  position: sticky;
-  top: 80px;
-  z-index: 1;
+  max-width: 1420px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y pinch-zoom;
+  border: 1px solid rgb(0 201 167 / 0.28);
   border-radius: 8px;
-  background: #0a0e1a;
-  padding: 8px 4px;
+  background: linear-gradient(180deg, rgb(13 34 63 / 0.88), rgb(10 14 26 / 0.92));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 24px 80px rgb(0 0 0 / 0.26);
+}
+
+.bracket-zoom-plane {
+  position: relative;
+}
+
+.tournament-bracket {
+  display: grid;
+  grid-template-columns: 150px 150px 150px 150px 200px 150px 150px 150px 150px;
+  gap: 16px;
+  padding: 16px;
+  transform-origin: top left;
+}
+
+.tournament-column {
+  display: grid;
+  min-height: 810px;
+  grid-template-rows: 34px 1fr;
+  min-width: 0;
+}
+
+.tournament-column h3,
+.tournament-center h3 {
+  display: grid;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.07);
+  color: #ffd700;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tournament-slots {
+  position: relative;
+  display: grid;
+  align-content: space-around;
+  gap: 8px;
+  padding-block: 8px;
+}
+
+.tournament-r32 .tournament-slots {
+  grid-template-rows: repeat(8, 84px);
+}
+
+.tournament-r16 .tournament-slots {
+  grid-template-rows: repeat(4, 92px);
+}
+
+.tournament-qf .tournament-slots {
+  grid-template-rows: repeat(2, 104px);
+}
+
+.tournament-sf .tournament-slots {
+  grid-template-rows: 120px;
+}
+
+.bracket-slot {
+  position: relative;
+}
+
+.bracket-slot::after,
+.bracket-slot::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  border-top: 1px solid rgb(255 255 255 / 0.25);
+}
+
+.tournament-column.left .bracket-slot::after {
+  right: -16px;
+}
+
+.tournament-column.right .bracket-slot::before {
+  left: -16px;
+}
+
+.tournament-column.left .bracket-slot::before,
+.tournament-column.right .bracket-slot::after {
+  display: none;
+}
+
+.bracket-match {
+  min-height: 78px;
+  padding: 9px;
+}
+
+.bracket-match-center {
+  min-height: 112px;
+}
+
+.tournament-center {
+  display: grid;
+  min-height: 810px;
+  grid-template-rows: 34px 1fr;
+}
+
+.final-pedestal {
+  align-self: center;
+  display: grid;
+  gap: 28px;
+  border: 1px solid rgb(255 215 0 / 0.22);
+  border-radius: 8px;
+  background: rgb(255 215 0 / 0.08);
+  padding: 14px;
+}
+
+.final-pedestal h4 {
+  margin-bottom: 8px;
+  text-align: center;
   font-family: "Bebas Neue", Impact, sans-serif;
   font-size: 28px;
-  color: #ffd700;
+  line-height: 1;
+  color: white;
 }
 
 .scorer-row,
@@ -333,6 +573,68 @@ select {
 .text-input option {
   background: #141829;
   color: white;
+}
+
+.date-input-wrap {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.06);
+  padding: 0 12px;
+  color: #8892a4;
+}
+
+.date-input-wrap input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: white;
+  outline: none;
+}
+
+.admin-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-match-picker {
+  display: grid;
+  max-height: 270px;
+  gap: 8px;
+  overflow-y: auto;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 8px;
+  background: rgb(10 14 26 / 0.35);
+  padding: 8px;
+}
+
+.admin-match-option {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.055);
+  padding: 8px 10px;
+  transition: 160ms ease;
+}
+
+.admin-match-option:hover,
+.admin-match-option-active {
+  border-color: rgb(0 201 167 / 0.45);
+  background: rgb(0 201 167 / 0.12);
+}
+
+.locked-admin-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .upload-zone {
@@ -395,4 +697,52 @@ select {
   padding: 12px 14px;
   color: #f0f4ff;
   box-shadow: 0 18px 60px rgb(0 0 0 / 0.35);
+}
+
+@media (max-width: 760px) {
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .participant-summary-grid,
+  .admin-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prediction-section-title {
+    align-items: start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .prediction-list {
+    grid-template-columns: 1fr;
+  }
+
+  .prediction-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .prediction-score {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .admin-match-option {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .locked-admin-panel {
+    align-items: start;
+  }
+
+  .bracket-viewport {
+    margin-inline: -8px;
+  }
+
+  .zoom-controls {
+    justify-content: flex-start;
+  }
 }

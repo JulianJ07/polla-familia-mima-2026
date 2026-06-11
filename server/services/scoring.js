@@ -37,6 +37,113 @@ function winnerName(homeGoals, awayGoals, homeTeam, awayTeam) {
   return "draw";
 }
 
+function matchFinished(match) {
+  return match?.status === "finished" && match.home_goals != null && match.away_goals != null;
+}
+
+function stageSortValue(stage) {
+  return {
+    group: 1,
+    r32: 2,
+    r16: 3,
+    qf: 4,
+    sf: 5,
+    third: 6,
+    final: 7
+  }[stage] || 99;
+}
+
+function groupFromMatch(match) {
+  if (match?.stage !== "group") return null;
+  const [, groupCode] = String(match.match_id || "").match(/^G-([A-L])-/i) || [];
+  return groupCode?.toUpperCase() || null;
+}
+
+function emptyStanding(team) {
+  return {
+    team,
+    played: 0,
+    points: 0,
+    gf: 0,
+    ga: 0,
+    gd: 0
+  };
+}
+
+function groupStandings(matchMap) {
+  const groups = new Map();
+
+  for (const match of matchMap.values()) {
+    const groupCode = groupFromMatch(match);
+    if (!groupCode) continue;
+
+    if (!groups.has(groupCode)) {
+      groups.set(groupCode, {
+        groupCode,
+        rows: new Map(),
+        totalMatches: 0,
+        finishedMatches: 0
+      });
+    }
+
+    const group = groups.get(groupCode);
+    group.totalMatches += 1;
+    for (const team of [match.home_team, match.away_team].filter(Boolean)) {
+      if (!group.rows.has(cleanName(team))) group.rows.set(cleanName(team), emptyStanding(team));
+    }
+
+    if (!matchFinished(match)) continue;
+
+    group.finishedMatches += 1;
+    const home = group.rows.get(cleanName(match.home_team));
+    const away = group.rows.get(cleanName(match.away_team));
+    if (!home || !away) continue;
+    home.played += 1;
+    away.played += 1;
+    home.gf += match.home_goals;
+    home.ga += match.away_goals;
+    away.gf += match.away_goals;
+    away.ga += match.home_goals;
+    home.gd = home.gf - home.ga;
+    away.gd = away.gf - away.ga;
+
+    if (match.home_goals > match.away_goals) {
+      home.points += 3;
+    } else if (match.away_goals > match.home_goals) {
+      away.points += 3;
+    } else {
+      home.points += 1;
+      away.points += 1;
+    }
+  }
+
+  return new Map(
+    [...groups.entries()].map(([groupCode, group]) => {
+      const rows = [...group.rows.values()]
+        .sort((a, b) =>
+          b.points - a.points ||
+          b.gd - a.gd ||
+          b.gf - a.gf ||
+          a.team.localeCompare(b.team)
+        )
+        .map((row, index) => ({ ...row, position: index + 1 }));
+      return [groupCode, { ...group, rows }];
+    })
+  );
+}
+
+function predictionVerdict(prediction, match, scored) {
+  if (!matchFinished(match)) return "pending";
+  if (scored.points > 0) return "hit";
+  if (
+    prediction.predicted_home_goals === match.home_goals &&
+    prediction.predicted_away_goals === match.away_goals
+  ) {
+    return "hit";
+  }
+  return "miss";
+}
+
 function scorePrediction(prediction, match) {
   if (!match || match.status !== "finished" || match.home_goals == null || match.away_goals == null) {
     return { points: 0, reason: "Pendiente" };
@@ -266,18 +373,28 @@ export async function getParticipantDetail(participantId) {
   assertNoError(predictionError, "Leer detalle de predicciones");
 
   const matchMap = await getMatchMap();
-  const enrichedPredictions = (predictions || []).map((prediction) => {
+  const standingsMap = groupStandings(matchMap);
+  const enrichedPredictions = (predictions || [])
+    .map((prediction) => {
     const match = matchMap.get(prediction.match_id);
+    const scored = scorePrediction(prediction, match);
     return {
       ...prediction,
+      stageLabel: STAGE_LABELS[prediction.stage],
       home_team: match?.home_team,
       away_team: match?.away_team,
       home_goals: match?.home_goals,
       away_goals: match?.away_goals,
       status: match?.status,
-      match_date: match?.match_date
+      match_date: match?.match_date,
+      points: scored.points,
+      reason: scored.reason,
+      verdict: predictionVerdict(prediction, match, scored),
+      predicted_score: `${prediction.predicted_home_goals ?? "-"}-${prediction.predicted_away_goals ?? "-"}`,
+      actual_score: matchFinished(match) ? `${match.home_goals}-${match.away_goals}` : null
     };
-  });
+    })
+    .sort((a, b) => stageSortValue(a.stage) - stageSortValue(b.stage) || String(a.match_id).localeCompare(String(b.match_id), undefined, { numeric: true }));
 
   const { data: individual, error: individualError } = await client
     .from("individual_predictions")
@@ -294,12 +411,38 @@ export async function getParticipantDetail(participantId) {
     .order("predicted_position", { ascending: true });
   assertNoError(groupsError, "Leer predicciones de grupos");
 
+  const enrichedGroups = (groups || []).map((row) => {
+    const group = standingsMap.get(String(row.group_code || "").toUpperCase());
+    const actual = group?.rows.find((standing) => sameTeam(standing.team, row.team_code));
+    const hasResults = (group?.finishedMatches || 0) > 0;
+    return {
+      ...row,
+      actual_position: actual?.position || null,
+      actual_points: actual?.points ?? null,
+      actual_gd: actual?.gd ?? null,
+      actual_played: actual?.played ?? null,
+      group_finished_matches: group?.finishedMatches || 0,
+      group_total_matches: group?.totalMatches || 0,
+      verdict: !hasResults || !actual ? "pending" : actual.position === row.predicted_position ? "hit" : "miss"
+    };
+  });
+
+  const actualGroups = [...standingsMap.values()]
+    .sort((a, b) => a.groupCode.localeCompare(b.groupCode))
+    .map((group) => ({
+      group_code: group.groupCode,
+      finished_matches: group.finishedMatches,
+      total_matches: group.totalMatches,
+      rows: group.rows
+    }));
+
   return {
     participant,
     totalPoints: breakdown.total,
     breakdown,
     predictions: enrichedPredictions,
     individual,
-    groups: groups || []
+    groups: enrichedGroups,
+    actualGroups
   };
 }

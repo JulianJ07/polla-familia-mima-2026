@@ -2,6 +2,7 @@ import {
   Activity,
   Armchair,
   BarChart3,
+  CalendarDays,
   CalendarClock,
   CheckCircle2,
   CircleDot,
@@ -9,6 +10,8 @@ import {
   Goal,
   Lock,
   Medal,
+  Minus,
+  Plus,
   RefreshCw,
   Search,
   Settings,
@@ -90,6 +93,39 @@ function formatColombiaDate(value) {
     minute: "2-digit",
     hour12: true
   }).format(date);
+}
+
+function colombiaParts(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+}
+
+function dateOnlyColombia(value) {
+  const parts = colombiaParts(value);
+  if (!parts) return "";
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function datetimeLocalColombia(value) {
+  const parts = colombiaParts(value);
+  if (!parts) return "";
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+function colombiaDateTimeToIso(value) {
+  if (!value) return null;
+  return new Date(`${value}:00-05:00`).toISOString();
 }
 
 function AnimatedNumber({ value }) {
@@ -259,7 +295,7 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
             </div>
           </div>
 
-          <div className="grid gap-4 py-5 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-4 py-5 lg:grid-cols-[340px_minmax(0,1fr)]">
             <CategoryPodium leaderboard={leaderboard.slice(0, 3)} />
             <ParticipantPanel detail={participantDetail} />
           </div>
@@ -299,9 +335,23 @@ function ParticipantPanel({ detail }) {
     );
   }
 
-  const items = detail.breakdown?.details?.slice(-6).reverse() || [];
+  const predictions = detail.predictions || [];
+  const groups = (detail.groups || []).reduce((acc, row) => {
+    acc[row.group_code] ||= [];
+    acc[row.group_code].push(row);
+    return acc;
+  }, {});
+  const stageBuckets = predictions.reduce((acc, item) => {
+    const label = item.stageLabel || item.stage;
+    acc[label] ||= [];
+    acc[label].push(item);
+    return acc;
+  }, {});
+  const hits = predictions.filter((item) => item.verdict === "hit").length;
+  const misses = predictions.filter((item) => item.verdict === "miss").length;
+
   return (
-    <div className="panel">
+    <div className="panel participant-panel">
       <div className="mb-4 flex items-center justify-between">
         <div className="min-w-0">
           <h3 className="section-title truncate">{detail.participant.name}</h3>
@@ -309,16 +359,116 @@ function ParticipantPanel({ detail }) {
         </div>
         <BarChart3 className="text-mint" />
       </div>
-      <div className="space-y-2">
-        {items.map((item, index) => (
-          <div key={`${item.label}-${index}`} className="detail-row">
-            <div className="min-w-0">
-              <p className="truncate font-bold text-white">{item.label}</p>
-              <p className="truncate text-xs text-muted">{item.reason}</p>
-            </div>
-            <span className="rounded-full bg-gold/10 px-2 py-1 text-sm font-black text-gold">{formatPoints(item.points)}</span>
+
+      <div className="participant-summary-grid">
+        <div className="mini-stat">
+          <span>{formatPoints(detail.totalPoints)}</span>
+          <small>puntos</small>
+        </div>
+        <div className="mini-stat">
+          <span>{hits}</span>
+          <small>aciertos cerrados</small>
+        </div>
+        <div className="mini-stat">
+          <span>{misses}</span>
+          <small>fallos cerrados</small>
+        </div>
+        <div className="mini-stat">
+          <span>{predictions.length}</span>
+          <small>pronosticos</small>
+        </div>
+      </div>
+
+      <div className="prediction-section">
+        <div className="prediction-section-title">
+          <h4>Grupos</h4>
+          <span>verde si coincide la posicion actual/final</span>
+        </div>
+        <div className="group-prediction-grid">
+          {Object.entries(groups).map(([groupCode, rows]) => (
+            <article key={groupCode} className="group-prediction-card">
+              <div className="mb-2 flex items-center justify-between">
+                <strong>Grupo {groupCode}</strong>
+                <span className="text-xs font-black text-muted">
+                  {rows[0]?.group_finished_matches || 0}/{rows[0]?.group_total_matches || 6}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {rows.map((row) => {
+                  const groupHasResults = Number(row.group_finished_matches || 0) > 0;
+                  return (
+                    <div key={`${groupCode}-${row.predicted_position}`} className={cx("prediction-row", `prediction-${row.verdict}`)}>
+                      <span className="prediction-rank">#{row.predicted_position}</span>
+                      <span className="min-w-0 flex-1 truncate font-extrabold text-white">{row.team_code}</span>
+                      <span className="text-right text-xs font-bold text-muted">
+                        {groupHasResults && row.actual_position ? `real #${row.actual_position} - ${row.actual_points} pts` : "pendiente"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      {detail.individual && (
+        <div className="prediction-section">
+          <div className="prediction-section-title">
+            <h4>Individuales</h4>
           </div>
-        ))}
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="mini-stat">
+              <span>{detail.individual.top_scorer || "-"}</span>
+              <small>goleador</small>
+            </div>
+            <div className="mini-stat">
+              <span>{detail.individual.best_player || "-"}</span>
+              <small>mejor jugador</small>
+            </div>
+            <div className="mini-stat">
+              <span>{detail.individual.best_goalkeeper || "-"}</span>
+              <small>mejor arquero</small>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="prediction-section">
+        <div className="prediction-section-title">
+          <h4>Partidos</h4>
+          <span>todos los marcadores del participante</span>
+        </div>
+        <div className="prediction-stage-stack">
+          {Object.entries(stageBuckets).map(([label, items]) => (
+            <div key={label}>
+              <p className="mb-2 text-xs font-black uppercase text-mint">{label}</p>
+              <div className="prediction-list">
+                {items.map((item) => (
+                  <article key={item.match_id} className={cx("prediction-card", `prediction-${item.verdict}`)}>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-black text-muted">{item.match_id}</span>
+                        <span className="text-xs font-bold text-muted">{formatColombiaDate(item.match_date)}</span>
+                      </div>
+                      <p className="mt-1 truncate font-extrabold text-white">
+                        {item.predicted_home_team || item.home_team || "Local"} vs {item.predicted_away_team || item.away_team || "Visitante"}
+                      </p>
+                      <p className="truncate text-xs font-semibold text-muted">
+                        Real: {item.home_team || "Pendiente"} vs {item.away_team || "Pendiente"} - {item.actual_score || "sin resultado"}
+                      </p>
+                    </div>
+                    <div className="prediction-score">
+                      <strong>{item.predicted_score}</strong>
+                      <small>{item.reason}</small>
+                      <span>{formatPoints(item.points)} pts</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -390,15 +540,65 @@ function MatchesView({ matches, stage, setStage }) {
   );
 }
 
+function BracketMatchCard({ match, compact = false }) {
+  return (
+    <article className={cx("bracket-match", compact && "bracket-match-center")}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-black text-muted">{match?.match_id || "Pendiente"}</span>
+        <CircleDot size={14} className={match?.status === "live" ? "text-red-300" : "text-mint"} />
+      </div>
+      <p className="mt-2 truncate text-xs font-bold text-muted">{formatColombiaDate(match?.match_date)}</p>
+      <div className="mt-3 space-y-1">
+        <p className="truncate font-bold text-white">{match?.home_team || "Local"}</p>
+        <p className="truncate font-bold text-white">{match?.away_team || "Visitante"}</p>
+      </div>
+      <div className="mt-3 text-sm font-black text-gold">
+        {match?.home_goals == null ? "Pendiente" : `${match.home_goals}-${match.away_goals}`}
+      </div>
+    </article>
+  );
+}
+
+function BracketColumn({ label, matches, side, stage }) {
+  return (
+    <div className={cx("tournament-column", `tournament-${stage}`, side)}>
+      <h3>{label}</h3>
+      <div className="tournament-slots">
+        {matches.map((match) => (
+          <div key={match.match_id} className="bracket-slot">
+            <BracketMatchCard match={match} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function BracketView({ bracket }) {
-  const order = [
-    ["r32", "Ronda de 32"],
-    ["r16", "Octavos"],
-    ["qf", "Cuartos"],
-    ["sf", "Semis"],
-    ["third", "3er puesto"],
-    ["final", "Final"]
+  const [zoom, setZoom] = useState(0.88);
+  const r32 = bracket.r32 || [];
+  const r16 = bracket.r16 || [];
+  const qf = bracket.qf || [];
+  const sf = bracket.sf || [];
+  const finalMatch = bracket.final?.[0];
+  const thirdMatch = bracket.third?.[0];
+  const width = 1420;
+  const height = 850;
+
+  const columns = [
+    { label: "16avos", matches: r32.slice(0, 8), side: "left", stage: "r32" },
+    { label: "8avos", matches: r16.slice(0, 4), side: "left", stage: "r16" },
+    { label: "4tos", matches: qf.slice(0, 2), side: "left", stage: "qf" },
+    { label: "Semis", matches: sf.slice(0, 1), side: "left", stage: "sf" },
+    { label: "Semis", matches: sf.slice(1, 2), side: "right", stage: "sf" },
+    { label: "4tos", matches: qf.slice(2, 4), side: "right", stage: "qf" },
+    { label: "8avos", matches: r16.slice(4, 8), side: "right", stage: "r16" },
+    { label: "16avos", matches: r32.slice(8, 16), side: "right", stage: "r32" }
   ];
+
+  function nudgeZoom(delta) {
+    setZoom((current) => Math.min(1.25, Math.max(0.68, Number((current + delta).toFixed(2)))));
+  }
 
   return (
     <section className="page-section">
@@ -407,27 +607,41 @@ function BracketView({ bracket }) {
           <p className="eyebrow">Llaves</p>
           <h2 className="page-title">Camino a la copa</h2>
         </div>
+        <div className="zoom-controls">
+          <button type="button" className="icon-button" onClick={() => nudgeZoom(-0.08)} title="Alejar" aria-label="Alejar">
+            <Minus size={16} />
+          </button>
+          <span>{Math.round(zoom * 100)}%</span>
+          <button type="button" className="icon-button" onClick={() => nudgeZoom(0.08)} title="Acercar" aria-label="Acercar">
+            <Plus size={16} />
+          </button>
+        </div>
       </div>
-      <div className="bracket-scroll">
-        {order.map(([stage, label]) => (
-          <div key={stage} className="bracket-column">
-            <h3>{label}</h3>
-            {(bracket[stage] || []).map((match) => (
-              <article key={match.match_id} className="bracket-match">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-muted">{match.match_id}</span>
-                  <CircleDot size={14} className={match.status === "live" ? "text-red-300" : "text-mint"} />
+
+      <div className="bracket-viewport">
+        <div className="bracket-zoom-plane" style={{ width: width * zoom, minHeight: height * zoom }}>
+          <div className="tournament-bracket" style={{ width, minHeight: height, transform: `scale(${zoom})` }}>
+            {columns.slice(0, 4).map((column) => (
+              <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
+            ))}
+            <div className="tournament-center">
+              <h3>FINAL</h3>
+              <div className="final-pedestal">
+                <div>
+                  <h4>Final</h4>
+                  <BracketMatchCard match={finalMatch} compact />
                 </div>
-                <p className="mt-2 text-xs font-bold text-muted">{formatColombiaDate(match.match_date)}</p>
-                <p className="mt-3 truncate font-bold text-white">{match.home_team}</p>
-                <p className="truncate font-bold text-white">{match.away_team}</p>
-                <div className="mt-3 text-sm font-black text-gold">
-                  {match.home_goals == null ? "Pendiente" : `${match.home_goals}-${match.away_goals}`}
+                <div>
+                  <h4>3er puesto</h4>
+                  <BracketMatchCard match={thirdMatch} compact />
                 </div>
-              </article>
+              </div>
+            </div>
+            {columns.slice(4).map((column) => (
+              <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
             ))}
           </div>
-        ))}
+        </div>
       </div>
     </section>
   );
@@ -500,11 +714,16 @@ function AwardLine({ label, value, actual, points }) {
 function AdminView({ password, setPassword, leaderboard, onDone }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [logs, setLogs] = useState([]);
   const [newPassword, setNewPassword] = useState("");
   const [includeTopScorers, setIncludeTopScorers] = useState(false);
   const [adminMatches, setAdminMatches] = useState([]);
   const [selectedMatchId, setSelectedMatchId] = useState("");
+  const [adminStageFilter, setAdminStageFilter] = useState("group");
+  const [adminGroupFilter, setAdminGroupFilter] = useState("all");
+  const [adminDateFilter, setAdminDateFilter] = useState("");
+  const [adminSearch, setAdminSearch] = useState("");
   const [matchForm, setMatchForm] = useState({
     home_team: "",
     away_team: "",
@@ -516,16 +735,13 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     locked: false
   });
 
-  function dateForInput(value) {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return local.toISOString().slice(0, 16);
-  }
-
   function nullableNumber(value) {
     return value === "" || value == null ? null : Number(value);
+  }
+
+  function matchGroup(match) {
+    const [, groupCode] = String(match.match_id || "").match(/^G-([A-L])-/i) || [];
+    return groupCode?.toUpperCase() || "";
   }
 
   function syncMessage(summary) {
@@ -550,6 +766,23 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
   async function loadAdminMatches() {
     const data = await apiGet("/matches?stage=all");
     setAdminMatches(data.rows || []);
+  }
+
+  async function handleUnlock(event) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      await loadLogs();
+      await loadAdminMatches();
+      setIsAdminUnlocked(true);
+      setMessage("Admin desbloqueado.");
+    } catch (error) {
+      setIsAdminUnlocked(false);
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSync() {
@@ -585,7 +818,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
 
   async function handleSaveMatch(event) {
     event.preventDefault();
-    if (!selectedMatchId) return;
+    if (!selectedMatchId || !isAdminUnlocked) return;
     setBusy(true);
     setMessage("");
     try {
@@ -595,7 +828,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
         home_goals: nullableNumber(matchForm.home_goals),
         away_goals: nullableNumber(matchForm.away_goals),
         status: matchForm.status,
-        match_date: matchForm.match_date ? new Date(matchForm.match_date).toISOString() : null,
+        match_date: colombiaDateTimeToIso(matchForm.match_date),
         manual_override: matchForm.manual_override,
         locked: matchForm.locked
       });
@@ -618,6 +851,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       await adminPost("/admin/password", password, { newPassword });
       setPassword(newPassword);
       setNewPassword("");
+      setIsAdminUnlocked(true);
       setMessage("Password admin actualizado.");
       await loadLogs();
     } catch (error) {
@@ -632,27 +866,55 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     [adminMatches, selectedMatchId]
   );
 
-  useEffect(() => {
-    loadLogs().catch(() => {});
-    loadAdminMatches().catch(() => {});
-  }, [password]);
+  const groupOptions = useMemo(() => {
+    const options = [...new Set(adminMatches.map(matchGroup).filter(Boolean))].sort();
+    return ["all", ...options];
+  }, [adminMatches]);
+
+  const filteredAdminMatches = useMemo(() => {
+    const search = adminSearch.trim().toLowerCase();
+    return adminMatches.filter((match) => {
+      const groupCode = matchGroup(match);
+      const text = `${match.match_id} ${match.home_team} ${match.away_team} ${match.stageLabel}`.toLowerCase();
+      const stageOk = adminStageFilter === "all" || match.stage === adminStageFilter;
+      const groupOk = adminGroupFilter === "all" || groupCode === adminGroupFilter;
+      const dateOk = !adminDateFilter || dateOnlyColombia(match.match_date) === adminDateFilter;
+      const searchOk = !search || text.includes(search);
+      return stageOk && groupOk && dateOk && searchOk;
+    });
+  }, [adminDateFilter, adminGroupFilter, adminMatches, adminSearch, adminStageFilter]);
 
   useEffect(() => {
-    if (!adminMatches.length) return;
-    if (!selectedMatchId || !adminMatches.some((match) => match.match_id === selectedMatchId)) {
-      setSelectedMatchId(adminMatches[0].match_id);
+    if (!filteredAdminMatches.length) {
+      if (selectedMatchId) setSelectedMatchId("");
+      return;
     }
-  }, [adminMatches, selectedMatchId]);
+    if (!selectedMatchId || !filteredAdminMatches.some((match) => match.match_id === selectedMatchId)) {
+      setSelectedMatchId(filteredAdminMatches[0].match_id);
+    }
+  }, [filteredAdminMatches, selectedMatchId]);
 
   useEffect(() => {
-    if (!selectedMatch) return;
+    if (!selectedMatch) {
+      setMatchForm({
+        home_team: "",
+        away_team: "",
+        home_goals: "",
+        away_goals: "",
+        status: "scheduled",
+        match_date: "",
+        manual_override: true,
+        locked: false
+      });
+      return;
+    }
     setMatchForm({
       home_team: selectedMatch.home_team || "",
       away_team: selectedMatch.away_team || "",
       home_goals: selectedMatch.home_goals ?? "",
       away_goals: selectedMatch.away_goals ?? "",
       status: selectedMatch.status || "scheduled",
-      match_date: dateForInput(selectedMatch.match_date),
+      match_date: datetimeLocalColombia(selectedMatch.match_date),
       manual_override: selectedMatch.manual_override ?? true,
       locked: selectedMatch.locked ?? false
     });
@@ -670,31 +932,49 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
 
       <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
         <div className="panel space-y-4">
-          <label className="field-label">
-            Password
-            <input className="text-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </label>
-          <label className="flex items-center gap-2 text-sm font-bold text-muted">
-            <input type="checkbox" checked={includeTopScorers} onChange={(event) => setIncludeTopScorers(event.target.checked)} />
-            Incluir goleadores
-          </label>
-          <div className="flex flex-wrap gap-3">
-            <button className="secondary-button" type="button" onClick={handleSync} disabled={busy || !password}>
-              <Activity size={18} /> Sync
-            </button>
-            <button className="secondary-button" type="button" onClick={handleRecalculate} disabled={busy || !password}>
-              <RefreshCw size={18} /> Recalcular
-            </button>
-          </div>
-          <form className="space-y-3 border-t border-white/10 pt-4" onSubmit={handlePasswordChange}>
+          <form className="space-y-3" onSubmit={handleUnlock}>
             <label className="field-label">
-              Nuevo password admin
-              <input className="text-input" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+              Password
+              <input
+                className="text-input"
+                type="password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setIsAdminUnlocked(false);
+                }}
+              />
             </label>
-            <button className="primary-button" type="submit" disabled={busy || !password || newPassword.length < 6}>
-              <Lock size={18} /> Cambiar password
+            <button className="primary-button w-full" type="submit" disabled={busy || !password}>
+              <Lock size={18} /> {isAdminUnlocked ? "Admin activo" : "Entrar al admin"}
             </button>
           </form>
+
+          {isAdminUnlocked && (
+            <>
+              <label className="flex items-center gap-2 text-sm font-bold text-muted">
+                <input type="checkbox" checked={includeTopScorers} onChange={(event) => setIncludeTopScorers(event.target.checked)} />
+                Incluir goleadores
+              </label>
+              <div className="flex flex-wrap gap-3">
+                <button className="secondary-button" type="button" onClick={handleSync} disabled={busy}>
+                  <Activity size={18} /> Sync
+                </button>
+                <button className="secondary-button" type="button" onClick={handleRecalculate} disabled={busy}>
+                  <RefreshCw size={18} /> Recalcular
+                </button>
+              </div>
+              <form className="space-y-3 border-t border-white/10 pt-4" onSubmit={handlePasswordChange}>
+                <label className="field-label">
+                  Nuevo password admin
+                  <input className="text-input" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+                </label>
+                <button className="primary-button" type="submit" disabled={busy || newPassword.length < 6}>
+                  <Lock size={18} /> Cambiar password
+                </button>
+              </form>
+            </>
+          )}
           {message && <p className="rounded-md border border-white/10 bg-white/6 p-3 text-sm font-semibold text-muted">{message}</p>}
         </div>
 
@@ -713,121 +993,195 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
           </div>
         </div>
 
-        <form className="panel space-y-4 lg:col-span-2" onSubmit={handleSaveMatch}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="section-title">Resultado manual</h3>
-            {selectedMatch && (
-              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase text-muted">
-                {selectedMatch.stageLabel}
-              </span>
-            )}
-          </div>
-          <label className="field-label">
-            Partido
-            <select className="text-input" value={selectedMatchId} onChange={(event) => setSelectedMatchId(event.target.value)}>
-              {adminMatches.map((match) => (
-                <option key={match.match_id} value={match.match_id}>
-                  {match.match_id} - {match.home_team} vs {match.away_team}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="field-label">
-              Equipo local
-              <input
-                className="text-input"
-                value={matchForm.home_team}
-                onChange={(event) => setMatchForm((current) => ({ ...current, home_team: event.target.value }))}
-              />
-            </label>
-            <label className="field-label">
-              Equipo visitante
-              <input
-                className="text-input"
-                value={matchForm.away_team}
-                onChange={(event) => setMatchForm((current) => ({ ...current, away_team: event.target.value }))}
-              />
-            </label>
-            <label className="field-label">
-              Goles local
-              <input
-                className="text-input"
-                type="number"
-                min="0"
-                value={matchForm.home_goals}
-                onChange={(event) => setMatchForm((current) => ({ ...current, home_goals: event.target.value }))}
-              />
-            </label>
-            <label className="field-label">
-              Goles visitante
-              <input
-                className="text-input"
-                type="number"
-                min="0"
-                value={matchForm.away_goals}
-                onChange={(event) => setMatchForm((current) => ({ ...current, away_goals: event.target.value }))}
-              />
-            </label>
-            <label className="field-label">
-              Estado
-              <select
-                className="text-input"
-                value={matchForm.status}
-                onChange={(event) => setMatchForm((current) => ({ ...current, status: event.target.value }))}
-              >
-                <option value="scheduled">scheduled</option>
-                <option value="live">live</option>
-                <option value="finished">finished</option>
-              </select>
-            </label>
-            <label className="field-label">
-              Fecha
-              <input
-                className="text-input"
-                type="datetime-local"
-                value={matchForm.match_date}
-                onChange={(event) => setMatchForm((current) => ({ ...current, match_date: event.target.value }))}
-              />
-            </label>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-sm font-bold text-muted">
-              <input
-                type="checkbox"
-                checked={matchForm.manual_override}
-                onChange={(event) => setMatchForm((current) => ({ ...current, manual_override: event.target.checked }))}
-              />
-              manual_override
-            </label>
-            <label className="flex items-center gap-2 text-sm font-bold text-muted">
-              <input
-                type="checkbox"
-                checked={matchForm.locked}
-                onChange={(event) => setMatchForm((current) => ({ ...current, locked: event.target.checked }))}
-              />
-              locked
-            </label>
-          </div>
-          <button className="primary-button" type="submit" disabled={busy || !password || !selectedMatchId}>
-            <CheckCircle2 size={18} /> Guardar resultado
-          </button>
-        </form>
+        {isAdminUnlocked ? (
+          <form className="panel space-y-4 lg:col-span-2" onSubmit={handleSaveMatch}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="section-title">Resultado manual</h3>
+              {selectedMatch && (
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase text-muted">
+                  {selectedMatch.stageLabel} - {selectedMatch.match_id}
+                </span>
+              )}
+            </div>
 
-        <div className="panel lg:col-span-2">
-          <h3 className="section-title mb-4">Logs de sincronizacion</h3>
-          <div className="space-y-2">
-            {logs.map((log) => (
-              <div key={log.id} className="detail-row">
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-white">{log.source}</p>
-                  <p className="truncate text-xs text-muted">{log.message}</p>
+            <div className="admin-filter-grid">
+              <label className="field-label">
+                Fase
+                <select
+                  className="text-input"
+                  value={adminStageFilter}
+                  onChange={(event) => {
+                    setAdminStageFilter(event.target.value);
+                    if (!["all", "group"].includes(event.target.value)) setAdminGroupFilter("all");
+                  }}
+                >
+                  {stages.map(([id, label]) => (
+                    <option key={id} value={id}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                Grupo
+                <select
+                  className="text-input"
+                  value={adminGroupFilter}
+                  disabled={!["all", "group"].includes(adminStageFilter)}
+                  onChange={(event) => setAdminGroupFilter(event.target.value)}
+                >
+                  {groupOptions.map((option) => (
+                    <option key={option} value={option}>{option === "all" ? "Todos" : `Grupo ${option}`}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                Calendario
+                <span className="date-input-wrap">
+                  <CalendarDays size={16} />
+                  <input
+                    type="date"
+                    value={adminDateFilter}
+                    onChange={(event) => setAdminDateFilter(event.target.value)}
+                  />
+                </span>
+              </label>
+              <label className="field-label">
+                Buscar
+                <input
+                  className="text-input"
+                  value={adminSearch}
+                  onChange={(event) => setAdminSearch(event.target.value)}
+                  placeholder="Equipo o partido"
+                />
+              </label>
+            </div>
+
+            <div className="admin-match-picker">
+              {filteredAdminMatches.map((match) => (
+                <button
+                  key={match.match_id}
+                  type="button"
+                  className={cx("admin-match-option", selectedMatchId === match.match_id && "admin-match-option-active")}
+                  onClick={() => setSelectedMatchId(match.match_id)}
+                >
+                  <span className="font-black text-mint">{match.match_id}</span>
+                  <span className="min-w-0 flex-1 truncate text-left font-extrabold text-white">{match.home_team} vs {match.away_team}</span>
+                  <span className="text-xs font-bold text-muted">{formatColombiaDate(match.match_date)}</span>
+                </button>
+              ))}
+              {!filteredAdminMatches.length && (
+                <div className="rounded-md border border-white/10 bg-white/6 p-4 text-sm font-bold text-muted">
+                  No hay partidos con esos filtros.
                 </div>
-                <span className="text-xs font-black uppercase text-mint">{log.status}</span>
-              </div>
-            ))}
+              )}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="field-label">
+                Equipo local
+                <input
+                  className="text-input"
+                  value={matchForm.home_team}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, home_team: event.target.value }))}
+                />
+              </label>
+              <label className="field-label">
+                Equipo visitante
+                <input
+                  className="text-input"
+                  value={matchForm.away_team}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, away_team: event.target.value }))}
+                />
+              </label>
+              <label className="field-label">
+                Goles local
+                <input
+                  className="text-input"
+                  type="number"
+                  min="0"
+                  value={matchForm.home_goals}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, home_goals: event.target.value }))}
+                />
+              </label>
+              <label className="field-label">
+                Goles visitante
+                <input
+                  className="text-input"
+                  type="number"
+                  min="0"
+                  value={matchForm.away_goals}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, away_goals: event.target.value }))}
+                />
+              </label>
+              <label className="field-label">
+                Estado
+                <select
+                  className="text-input"
+                  value={matchForm.status}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, status: event.target.value }))}
+                >
+                  <option value="scheduled">scheduled</option>
+                  <option value="live">live</option>
+                  <option value="finished">finished</option>
+                </select>
+              </label>
+              <label className="field-label">
+                Fecha y hora Colombia
+                <input
+                  className="text-input"
+                  type="datetime-local"
+                  value={matchForm.match_date}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, match_date: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm font-bold text-muted">
+                <input
+                  type="checkbox"
+                  checked={matchForm.manual_override}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, manual_override: event.target.checked }))}
+                />
+                manual_override
+              </label>
+              <label className="flex items-center gap-2 text-sm font-bold text-muted">
+                <input
+                  type="checkbox"
+                  checked={matchForm.locked}
+                  onChange={(event) => setMatchForm((current) => ({ ...current, locked: event.target.checked }))}
+                />
+                locked
+              </label>
+            </div>
+            <button className="primary-button" type="submit" disabled={busy || !selectedMatchId}>
+              <CheckCircle2 size={18} /> Guardar resultado
+            </button>
+          </form>
+        ) : (
+          <div className="panel locked-admin-panel lg:col-span-2">
+            <Lock className="text-gold" size={28} />
+            <div>
+              <h3 className="section-title">Resultado manual bloqueado</h3>
+              <p className="text-sm font-semibold text-muted">Ingresa el password admin para actualizar partidos.</p>
+            </div>
           </div>
-        </div>
+        )}
+
+        {isAdminUnlocked && (
+          <div className="panel lg:col-span-2">
+            <h3 className="section-title mb-4">Logs de sincronizacion</h3>
+            <div className="space-y-2">
+              {logs.map((log) => (
+                <div key={log.id} className="detail-row">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-white">{log.source}</p>
+                    <p className="truncate text-xs text-muted">{log.message}</p>
+                  </div>
+                  <span className="text-xs font-black uppercase text-mint">{log.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
