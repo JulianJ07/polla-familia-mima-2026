@@ -185,7 +185,6 @@ function AnimatedNumber({ value }) {
 function StatusPill({ status }) {
   const config = {
     finished: ["Finalizado", "status-finished"],
-    live: ["En vivo", "status-live"],
     scheduled: ["Programado", "status-scheduled"]
   }[status] || ["Pendiente", "status-scheduled"];
   return <span className={cx("status-pill", config[1])}>{config[0]}</span>;
@@ -891,7 +890,7 @@ function BracketMatchCard({ match, compact = false }) {
     <article className={cx("bracket-match", compact && "bracket-match-center", `match-${match?.status || "scheduled"}`)}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-black text-muted">{match?.match_id || "Pendiente"}</span>
-        <CircleDot size={14} className={match?.status === "live" ? "text-red-300" : "text-mint"} />
+        <CircleDot size={14} className={match?.status === "finished" ? "text-mint" : "text-gold"} />
       </div>
       <p className="mt-2 truncate text-xs font-bold text-muted">{formatColombiaDate(match?.match_date)}</p>
       <div className="mt-3 space-y-1">
@@ -1180,6 +1179,10 @@ function GroupFinalControl({ controls, selectedGroupCode, setSelectedGroupCode, 
 function BestThirdsControl({ controls, form, setForm, onSave, busy }) {
   const options = controls?.thirdOptions || [];
   const calculated = controls?.bestThirds?.rows || [];
+  const source = controls?.bestThirds?.source;
+  const ready = controls?.bestThirds?.ready;
+  const note = controls?.bestThirds?.tiebreakNote;
+  const showManualOverride = source === "needs_manual_tiebreak" || source === "manual";
   const slots = Array.from({ length: 8 }, (_, index) => index);
 
   function updateSlot(index, value) {
@@ -1197,31 +1200,48 @@ function BestThirdsControl({ controls, form, setForm, onSave, busy }) {
       <div className="space-y-2">
         {calculated.length ? calculated.map((row) => (
           <div key={`${row.rank}-${row.team}`} className="detail-row">
-            <p className="truncate font-bold text-white">#{row.rank} {row.team}</p>
-            <span className="text-xs font-black uppercase text-muted">Grupo {row.groupCode || row.group_code || "-"}</span>
+            <div className="min-w-0">
+              <p className="truncate font-bold text-white">#{row.rank} {row.team}</p>
+              <p className="truncate text-xs text-muted">
+                Grupo {row.groupCode || row.group_code || "-"} | {row.points ?? "-"} pts | DG {row.gd ?? "-"} | GF {row.gf ?? "-"}
+              </p>
+            </div>
+            <span className="text-xs font-black uppercase text-muted">{row.source || source}</span>
           </div>
         )) : (
           <div className="rounded-md border border-white/10 bg-white/6 p-3 text-sm font-bold text-muted">
-            Pendiente de posiciones finales.
+            Pendiente de cerrar todos los grupos.
           </div>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {slots.map((slot) => (
-          <label key={slot} className="field-label">
-            Cupo {slot + 1}
-            <select className="text-input" value={form[slot] || ""} onChange={(event) => updateSlot(slot, event.target.value)}>
-              <option value="">Seleccionar</option>
-              {options.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-        ))}
+      <div className={cx("admin-message", ready ? "admin-message-ok" : "admin-message-soft")}>
+        {ready
+          ? "Calculado automaticamente con puntos, diferencia de gol y goles a favor."
+          : note || "Se calculara automaticamente cuando todos los grupos tengan tabla final con metricas completas."}
       </div>
-      <button className="secondary-button" type="button" onClick={() => onSave(form)} disabled={busy}>
-        <CheckCircle2 size={18} /> Guardar mejores terceros
-      </button>
+      {showManualOverride && (
+        <>
+          <div className="admin-message admin-message-soft">
+            Usa este desempate solo si el corte de los 8 mejores terceros necesita conducta del equipo o ranking FIFA.
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {slots.map((slot) => (
+              <label key={slot} className="field-label">
+                Cupo {slot + 1}
+                <select className="text-input" value={form[slot] || ""} onChange={(event) => updateSlot(slot, event.target.value)}>
+                  <option value="">Seleccionar</option>
+                  {options.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+          <button className="secondary-button" type="button" onClick={() => onSave(form)} disabled={busy}>
+            <CheckCircle2 size={18} /> Guardar desempate
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -1392,8 +1412,8 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       setMessage("Los goles deben ser numeros enteros mayores o iguales a 0.");
       return;
     }
-    if ((matchForm.status === "live" || matchForm.status === "finished") && (matchForm.home_goals === "" || matchForm.away_goals === "")) {
-      setMessage("Si el partido esta live o finished, debes escribir goles local y visitante.");
+    if (matchForm.status === "finished" && (matchForm.home_goals === "" || matchForm.away_goals === "")) {
+      setMessage("Si el partido esta finished, debes escribir goles local y visitante.");
       return;
     }
     setBusy(true);
@@ -1413,8 +1433,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       }
       await adminPatch(`/admin/matches/${encodeURIComponent(selectedMatchId)}`, password, payload);
       setMessage("Resultado manual guardado y tabla recalculada.");
-      await loadAdminData();
-      onDone();
+      Promise.all([loadAdminData(), Promise.resolve(onDone())]).catch((error) => setMessage(error.message));
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1473,7 +1492,7 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     setMessage("");
     try {
       await adminPost("/admin/best-thirds-final", password, { rows });
-      setMessage("Mejores terceros guardados y tabla recalculada.");
+      setMessage("Desempate de mejores terceros guardado y tabla recalculada.");
       await loadAdminData();
       onDone();
     } catch (error) {
@@ -1805,7 +1824,6 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
                   onChange={(event) => setMatchForm((current) => ({ ...current, status: event.target.value }))}
                 >
                   <option value="scheduled">scheduled</option>
-                  <option value="live">live</option>
                   <option value="finished">finished</option>
                 </select>
               </label>

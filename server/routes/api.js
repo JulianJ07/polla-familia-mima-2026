@@ -123,13 +123,6 @@ async function fetchAll(queryBuilder, pageSize = 1000) {
 
 async function currentPhase() {
   const client = requireSupabase();
-  const { count: liveCount, error: liveError } = await client
-    .from("match_results")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "live");
-  assertNoError(liveError, "Contar partidos en vivo");
-  if (liveCount) return "Partidos en vivo";
-
   const { data: upcoming, error } = await client
     .from("match_results")
     .select("stage,match_date")
@@ -378,7 +371,7 @@ export function createApiRouter(io) {
 
     if (hasOwn(body, "status")) {
       const status = String(body.status || "").trim();
-      if (!["scheduled", "live", "finished"].includes(status)) errors.push("Status invalido.");
+      if (!["scheduled", "finished"].includes(status)) errors.push("Status invalido.");
       else updates.status = status;
     }
 
@@ -404,8 +397,8 @@ export function createApiRouter(io) {
     const nextAwayGoals = hasOwn(updates, "away_goals") ? updates.away_goals : existing.away_goals;
     const isKnockout = isKnockoutStage(existing.stage);
 
-    if ((nextStatus === "live" || nextStatus === "finished") && (nextHomeGoals == null || nextAwayGoals == null)) {
-      errors.push("Si el partido esta live o finished, los goles deben ser enteros validos.");
+    if (nextStatus === "finished" && (nextHomeGoals == null || nextAwayGoals == null)) {
+      errors.push("Si el partido esta finished, los goles deben ser enteros validos.");
     }
 
     if (hasOwn(body, "qualified_team") || (isKnockout && nextStatus === "finished")) {

@@ -331,26 +331,50 @@ function resolveBestThirds(actualGroups, manualRows = []) {
     };
   }
 
-  const thirds = GROUP_CODES
+  const candidates = GROUP_CODES
     .map((groupCode) => {
       const group = actualGroups.get(groupCode);
       const row = group?.rows.find((item) => item.position === 3);
       return row ? { ...row, groupCode } : null;
     })
-    .filter(Boolean)
+    .filter((row) => row && row.points != null && row.gd != null && row.gf != null);
+
+  if (candidates.length < GROUP_CODES.length) {
+    return {
+      ready: false,
+      source: "pending_metrics",
+      rows: candidates
+        .sort((a, b) => String(a.groupCode).localeCompare(String(b.groupCode)))
+        .map((row, index) => ({ ...row, rank: index + 1, source: "calculated" }))
+    };
+  }
+
+  const ranked = candidates
     .sort((a, b) =>
       Number(b.points || 0) - Number(a.points || 0) ||
       Number(b.gd || 0) - Number(a.gd || 0) ||
       Number(b.gf || 0) - Number(a.gf || 0) ||
       String(a.team).localeCompare(String(b.team))
     )
-    .slice(0, 8)
     .map((row, index) => ({ ...row, rank: index + 1, source: "calculated" }));
 
+  const cutoff = ranked[7];
+  const boundaryTie = cutoff
+    ? ranked.filter((row) =>
+      Number(row.points || 0) === Number(cutoff.points || 0) &&
+      Number(row.gd || 0) === Number(cutoff.gd || 0) &&
+      Number(row.gf || 0) === Number(cutoff.gf || 0)
+    )
+    : [];
+  const needsManualTiebreak = boundaryTie.some((row) => row.rank <= 8) && boundaryTie.some((row) => row.rank > 8);
+
   return {
-    ready: thirds.length === 8,
-    source: "calculated",
-    rows: thirds
+    ready: ranked.length >= 8 && !needsManualTiebreak,
+    source: needsManualTiebreak ? "needs_manual_tiebreak" : "calculated",
+    rows: ranked.slice(0, 8),
+    tiebreakNote: needsManualTiebreak
+      ? "Empate en el corte de clasificación: falta conducta del equipo o ranking FIFA."
+      : null
   };
 }
 
@@ -384,6 +408,16 @@ async function getMatchMap() {
   const { data, error } = await client.from("match_results").select("*");
   assertNoError(error, "Leer partidos");
   return new Map((data || []).map((match) => [match.match_id, match]));
+}
+
+async function fetchAllRows(queryBuilder, context, pageSize = 1000) {
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await queryBuilder.range(from, from + pageSize - 1);
+    assertNoError(error, context);
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
 }
 
 async function buildScoringContext(matchMap) {
@@ -536,15 +570,45 @@ function addScore(state, category, points) {
   state.byCategory[category] = Number(((state.byCategory[category] || 0) + points).toFixed(2));
 }
 
-async function addGroupScores(client, participantId, state, context) {
-  const { data: groups, error } = await client
-    .from("group_predictions")
-    .select("*")
-    .eq("participant_id", participantId)
-    .order("group_code", { ascending: true })
-    .order("predicted_position", { ascending: true });
-  assertNoError(error, "Leer predicciones de grupos");
+function createScoreState(matchMap) {
+  return {
+    total: 0,
+    byCategory: {},
+    details: [],
+    exactHits: 0,
+    partialHits: 0,
+    matchesPlayed: [...matchMap.values()].filter(matchFinished).length
+  };
+}
 
+function addMatchScoresFromRows(predictions, state, matchMap) {
+  for (const prediction of predictions || []) {
+    const match = matchMap.get(prediction.match_id);
+    const scored = scorePrediction(prediction, match);
+    const hitStats = predictionHitStats(prediction, match);
+    if (hitStats.exact) state.exactHits += 1;
+    else if (hitStats.partial) state.partialHits += 1;
+    addScore(state, prediction.stage, scored.points);
+    state.details.push({
+      type: "match",
+      matchId: prediction.match_id,
+      stage: prediction.stage,
+      stageLabel: STAGE_LABELS[prediction.stage],
+      label: match ? `${match.home_team} vs ${match.away_team}` : `${prediction.predicted_home_team || ""} vs ${prediction.predicted_away_team || ""}`.trim(),
+      predicted: `${prediction.predicted_home_goals ?? "-"}-${prediction.predicted_away_goals ?? "-"}`,
+      actual: match?.home_goals == null ? null : `${match.home_goals}-${match.away_goals}`,
+      status: match?.status || "scheduled",
+      date: match?.match_date || null,
+      reason: scored.reason,
+      points: scored.points,
+      predictedHomeTeam: prediction.predicted_home_team,
+      predictedAwayTeam: prediction.predicted_away_team,
+      qualifiedTeam: match?.qualified_team || null
+    });
+  }
+}
+
+function addGroupScoresFromRows(groups, state, context) {
   const predictedThirdTeams = [];
 
   for (const row of groups || []) {
@@ -588,14 +652,7 @@ async function addGroupScores(client, participantId, state, context) {
   });
 }
 
-async function addAwardScores(client, participantId, state, context) {
-  const { data: individual, error } = await client
-    .from("individual_predictions")
-    .select("*")
-    .eq("participant_id", participantId)
-    .maybeSingle();
-  assertNoError(error, "Leer predicciones individuales");
-
+function addAwardScoresFromRow(individual, state, context) {
   for (const [key, config] of Object.entries(AWARD_CONFIG)) {
     const result = context.awardResults.get(key);
     const pick = individual?.[config.field] || "";
@@ -682,52 +739,76 @@ export async function calculateParticipantScore(participantId, providedMatches =
   const client = requireSupabase();
   const matchMap = providedMatches || (await getMatchMap());
   const context = providedContext || (await buildScoringContext(matchMap));
-  const { data: predictions, error } = await client
+  const { data: predictions, error: predictionError } = await client
     .from("predictions")
     .select("*")
     .eq("participant_id", participantId)
     .order("match_id", { ascending: true });
-  assertNoError(error, "Leer predicciones");
+  assertNoError(predictionError, "Leer predicciones");
 
-  const state = {
-    total: 0,
-    byCategory: {},
-    details: [],
-    exactHits: 0,
-    partialHits: 0,
-    matchesPlayed: [...matchMap.values()].filter(matchFinished).length
-  };
+  const { data: groups, error: groupError } = await client
+    .from("group_predictions")
+    .select("*")
+    .eq("participant_id", participantId)
+    .order("group_code", { ascending: true })
+    .order("predicted_position", { ascending: true });
+  assertNoError(groupError, "Leer predicciones de grupos");
 
-  for (const prediction of predictions || []) {
-    const match = matchMap.get(prediction.match_id);
-    const scored = scorePrediction(prediction, match);
-    const hitStats = predictionHitStats(prediction, match);
-    if (hitStats.exact) state.exactHits += 1;
-    else if (hitStats.partial) state.partialHits += 1;
-    addScore(state, prediction.stage, scored.points);
-    state.details.push({
-      type: "match",
-      matchId: prediction.match_id,
-      stage: prediction.stage,
-      stageLabel: STAGE_LABELS[prediction.stage],
-      label: match ? `${match.home_team} vs ${match.away_team}` : `${prediction.predicted_home_team || ""} vs ${prediction.predicted_away_team || ""}`.trim(),
-      predicted: `${prediction.predicted_home_goals ?? "-"}-${prediction.predicted_away_goals ?? "-"}`,
-      actual: match?.home_goals == null ? null : `${match.home_goals}-${match.away_goals}`,
-      status: match?.status || "scheduled",
-      date: match?.match_date || null,
-      reason: scored.reason,
-      points: scored.points,
-      predictedHomeTeam: prediction.predicted_home_team,
-      predictedAwayTeam: prediction.predicted_away_team,
-      qualifiedTeam: match?.qualified_team || null
-    });
-  }
+  const { data: individual, error: individualError } = await client
+    .from("individual_predictions")
+    .select("*")
+    .eq("participant_id", participantId)
+    .maybeSingle();
+  assertNoError(individualError, "Leer predicciones individuales");
 
-  await addGroupScores(client, participantId, state, context);
-  await addAwardScores(client, participantId, state, context);
+  const state = createScoreState(matchMap);
+  addMatchScoresFromRows(predictions, state, matchMap);
+  addGroupScoresFromRows(groups, state, context);
+  addAwardScoresFromRow(individual, state, context);
 
   state.total = Number(state.total.toFixed(2));
   return state;
+}
+
+async function calculateAllParticipantScores(participants, matchMap, context) {
+  const client = requireSupabase();
+  const [predictions, groupPredictions, individualPredictions] = await Promise.all([
+    fetchAllRows(client.from("predictions").select("*"), "Leer predicciones"),
+    fetchAllRows(client.from("group_predictions").select("*"), "Leer predicciones de grupos"),
+    fetchAllRows(client.from("individual_predictions").select("*"), "Leer predicciones individuales")
+  ]);
+
+  const predictionsByParticipant = new Map();
+  for (const prediction of predictions) {
+    const rows = predictionsByParticipant.get(prediction.participant_id) || [];
+    rows.push(prediction);
+    predictionsByParticipant.set(prediction.participant_id, rows);
+  }
+
+  const groupsByParticipant = new Map();
+  for (const row of groupPredictions) {
+    const rows = groupsByParticipant.get(row.participant_id) || [];
+    rows.push(row);
+    groupsByParticipant.set(row.participant_id, rows);
+  }
+
+  const individualByParticipant = new Map((individualPredictions || []).map((row) => [row.participant_id, row]));
+  const scores = new Map();
+
+  for (const participant of participants || []) {
+    const state = createScoreState(matchMap);
+    const matchRows = (predictionsByParticipant.get(participant.id) || [])
+      .sort((a, b) => String(a.match_id).localeCompare(String(b.match_id), undefined, { numeric: true }));
+    const groupRows = (groupsByParticipant.get(participant.id) || [])
+      .sort((a, b) => String(a.group_code).localeCompare(String(b.group_code)) || a.predicted_position - b.predicted_position);
+    addMatchScoresFromRows(matchRows, state, matchMap);
+    addGroupScoresFromRows(groupRows, state, context);
+    addAwardScoresFromRow(individualByParticipant.get(participant.id), state, context);
+    state.total = Number(state.total.toFixed(2));
+    scores.set(participant.id, state);
+  }
+
+  return scores;
 }
 
 export async function recalculateAllScores() {
@@ -736,10 +817,11 @@ export async function recalculateAllScores() {
   assertNoError(error, "Leer participantes");
   const matchMap = await getMatchMap();
   const context = await buildScoringContext(matchMap);
+  const scoreMap = await calculateAllParticipantScores(participants || [], matchMap, context);
   const rows = [];
 
   for (const participant of participants || []) {
-    const score = await calculateParticipantScore(participant.id, matchMap, context);
+    const score = scoreMap.get(participant.id);
     rows.push({
       participant_id: participant.id,
       total_points: score.total,
@@ -771,10 +853,11 @@ export async function getLeaderboard() {
   const scoreMap = new Map((scores || []).map((score) => [score.participant_id, score]));
   const matchMap = await getMatchMap();
   const context = await buildScoringContext(matchMap);
+  const calculatedScores = await calculateAllParticipantScores(participants || [], matchMap, context);
   const rows = [];
 
   for (const participant of participants || []) {
-    const score = await calculateParticipantScore(participant.id, matchMap, context);
+    const score = calculatedScores.get(participant.id);
     const cached = scoreMap.get(participant.id);
     rows.push({
       id: participant.id,

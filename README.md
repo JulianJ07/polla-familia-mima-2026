@@ -83,7 +83,7 @@ SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
 ```
 
-La app no usa sincronizacion automatica de resultados. Los resultados, clasificados, posiciones de grupo, mejores terceros y premios se cargan desde `/admin`.
+La app no usa sincronizacion automatica de resultados. Los resultados, clasificados, posiciones de grupo y premios se cargan desde `/admin`.
 
 ## Resultados manuales
 
@@ -109,6 +109,16 @@ Los partidos tienen campos de proteccion y cierre:
 - `decided_by_penalties`: marca informativa si la llave se definio por penales.
 
 En fase de grupos los empates cuentan como empate. En eliminatorias, si el marcador queda empatado, el admin debe seleccionar `qualified_team` para que el scoring asigne puntos de ganador/clasificado.
+
+## Mejores terceros
+
+Los 8 mejores terceros se calculan automaticamente cuando las 12 tablas finales de grupo tienen metricas completas:
+
+- puntos en fase de grupos
+- diferencia de gol
+- goles a favor
+
+Esto sigue el orden principal del reglamento FIFA 2026. Si hay empate justo en el corte del cupo 8 y esos tres criterios no alcanzan, la app muestra un fallback para guardar el desempate manual, porque los siguientes criterios son conducta del equipo y ranking FIFA.
 
 ## Seed desde Excel
 
@@ -153,7 +163,8 @@ La ruta `/admin` permite:
 - Corregir resultados manualmente.
 - Seleccionar equipo clasificado en eliminatorias.
 - Confirmar posiciones finales de grupo.
-- Confirmar los 8 mejores terceros.
+- Ver los 8 mejores terceros calculados automaticamente.
+- Resolver manualmente un empate de mejores terceros si hace falta conducta/ranking FIFA.
 - Confirmar premios individuales.
 - Ver tabla de posiciones.
 - Cambiar password admin.
