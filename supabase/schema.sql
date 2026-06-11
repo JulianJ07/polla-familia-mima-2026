@@ -19,8 +19,19 @@ create table if not exists match_results (
   stage text not null check (stage in ('group','r32','r16','qf','sf','third','final')),
   status text not null default 'scheduled',
   match_date timestamptz,
-  last_updated timestamptz not null default now()
+  last_updated timestamptz not null default now(),
+  manual_override boolean not null default false,
+  locked boolean not null default false,
+  source text,
+  confirmed_at timestamptz,
+  raw_payload jsonb
 );
+
+alter table match_results add column if not exists manual_override boolean not null default false;
+alter table match_results add column if not exists locked boolean not null default false;
+alter table match_results add column if not exists source text;
+alter table match_results add column if not exists confirmed_at timestamptz;
+alter table match_results add column if not exists raw_payload jsonb;
 
 create table if not exists predictions (
   id serial primary key,
@@ -87,6 +98,7 @@ create index if not exists idx_predictions_participant on predictions(participan
 create index if not exists idx_predictions_match on predictions(match_id);
 create index if not exists idx_predictions_stage on predictions(stage);
 create index if not exists idx_match_results_stage on match_results(stage, status);
+create index if not exists idx_match_results_override_flags on match_results(manual_override, locked);
 create index if not exists idx_scores_total on scores_cache(total_points desc);
 create index if not exists idx_sync_logs_created_at on sync_logs(created_at desc);
 

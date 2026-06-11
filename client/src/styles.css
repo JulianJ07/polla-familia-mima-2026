@@ -19,7 +19,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -327,6 +328,11 @@ input {
   padding: 0 12px;
   color: white;
   outline: none;
+}
+
+.text-input option {
+  background: #141829;
+  color: white;
 }
 
 .upload-zone {

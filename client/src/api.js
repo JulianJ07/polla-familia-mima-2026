@@ -24,3 +24,15 @@ export async function adminPost(path, password, body = {}) {
   });
   return parseResponse(response);
 }
+
+export async function adminPatch(path, password, body = {}) {
+  const response = await fetch(`/api${path}`, {
+    method: "PATCH",
+    headers: {
+      ...jsonHeaders,
+      "x-admin-password": password
+    },
+    body: JSON.stringify(body)
+  });
+  return parseResponse(response);
+}

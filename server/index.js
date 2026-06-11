@@ -65,7 +65,7 @@ if (process.env.ENABLE_CRON === "true") {
     }
     const shouldRun = live || (inTournament && minute % 30 < 2) || (!inTournament && now.getUTCHours() === 8 && minute < 2);
     if (!shouldRun) return;
-    await syncExternalData(io);
+    await syncExternalData(io, { includeGames: true, includeTopScorers: false });
   });
 }
 

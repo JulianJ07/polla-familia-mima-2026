@@ -27,6 +27,53 @@ async function adminOnly(req, res, next) {
   next();
 }
 
+function cronOnly(req, res, next) {
+  const expected = process.env.SYNC_SECRET;
+  if (!expected) {
+    return res.status(500).json({ error: "SYNC_SECRET no esta configurado." });
+  }
+  const provided = req.header("x-sync-secret") || req.query.secret;
+  if (provided !== expected) {
+    return res.status(401).json({ error: "Secreto de sincronizacion invalido." });
+  }
+  next();
+}
+
+function parseBoolean(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object || {}, key);
+}
+
+function optionalInteger(value) {
+  if (value === "" || value == null) return null;
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : undefined;
+}
+
+function optionalText(value) {
+  if (value === "" || value == null) return null;
+  return String(value).trim();
+}
+
+function optionalDate(value) {
+  if (value === "" || value == null) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function valuesDiffer(nextValue, currentValue, key) {
+  if (nextValue == null && currentValue == null) return false;
+  if (key === "match_date") {
+    const nextTime = nextValue ? new Date(nextValue).getTime() : null;
+    const currentTime = currentValue ? new Date(currentValue).getTime() : null;
+    return nextTime !== currentTime;
+  }
+  return String(nextValue ?? "") !== String(currentValue ?? "");
+}
+
 function stageLabel(stage) {
   return {
     group: "Grupos",
@@ -123,6 +170,14 @@ export function createApiRouter(io) {
     await recalculateAllScores();
     io.emit("scores:updated", { at: nowIso(), manual: true });
     res.json({ ok: true });
+  }));
+
+  router.post("/cron/sync", cronOnly, asyncHandler(async (_req, res) => {
+    const summary = await syncExternalData(io, {
+      includeGames: true,
+      includeTopScorers: false
+    });
+    res.json({ ok: true, summary });
   }));
 
   router.get("/participants", asyncHandler(async (_req, res) => {
@@ -230,9 +285,82 @@ export function createApiRouter(io) {
     res.json({ rows: data || [] });
   }));
 
-  router.post("/admin/sync", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
-    const summary = await syncExternalData(io);
+  router.post("/admin/sync", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    const summary = await syncExternalData(io, {
+      includeGames: true,
+      includeTopScorers: parseBoolean(req.body?.includeTopScorers),
+      forceTopScorers: parseBoolean(req.body?.forceTopScorers)
+    });
     res.json({ ok: true, summary });
+  }));
+
+  router.patch("/admin/matches/:matchId", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    const client = requireSupabase();
+    const matchId = String(req.params.matchId);
+    const body = req.body || {};
+    const updates = {};
+    const errors = [];
+
+    for (const [key, label] of [["home_goals", "Goles local"], ["away_goals", "Goles visitante"]]) {
+      if (!hasOwn(body, key)) continue;
+      const parsed = optionalInteger(body[key]);
+      if (parsed === undefined) errors.push(`${label} debe ser un entero mayor o igual a 0.`);
+      else updates[key] = parsed;
+    }
+
+    if (hasOwn(body, "status")) {
+      const status = String(body.status || "").trim();
+      if (!["scheduled", "live", "finished"].includes(status)) errors.push("Status invalido.");
+      else updates.status = status;
+    }
+
+    for (const key of ["home_team", "away_team"]) {
+      if (hasOwn(body, key)) updates[key] = optionalText(body[key]);
+    }
+
+    if (hasOwn(body, "match_date")) {
+      const parsed = optionalDate(body.match_date);
+      if (parsed === undefined) errors.push("Fecha del partido invalida.");
+      else updates.match_date = parsed;
+    }
+
+    if (hasOwn(body, "manual_override")) updates.manual_override = parseBoolean(body.manual_override);
+    if (hasOwn(body, "locked")) updates.locked = parseBoolean(body.locked);
+
+    if (errors.length) return res.status(400).json({ error: errors.join(" ") });
+    if (!Object.keys(updates).length) return res.status(400).json({ error: "No hay cambios para guardar." });
+
+    const { data: existing, error: readError } = await client
+      .from("match_results")
+      .select("*")
+      .eq("match_id", matchId)
+      .maybeSingle();
+    assertNoError(readError, "Leer partido");
+    if (!existing) return res.status(404).json({ error: "Partido no encontrado." });
+
+    const correctionFields = ["home_goals", "away_goals", "status", "home_team", "away_team", "match_date"];
+    const changedMatchData = correctionFields.some((field) => hasOwn(updates, field) && valuesDiffer(updates[field], existing[field], field));
+    if (changedMatchData) updates.manual_override = true;
+
+    const nextStatus = updates.status || existing.status;
+    updates.source = "admin";
+    updates.last_updated = nowIso();
+    if (nextStatus === "finished") updates.confirmed_at = nowIso();
+    else if (hasOwn(updates, "status")) updates.confirmed_at = null;
+
+    const { data: updated, error } = await client
+      .from("match_results")
+      .update(updates)
+      .eq("match_id", matchId)
+      .select("*")
+      .single();
+    assertNoError(error, "Guardar resultado manual");
+
+    await recalculateAllScores();
+    const payload = { matchId, updates };
+    await insertLog("admin.match", "ok", `Resultado manual guardado para ${matchId}.`, payload);
+    io.emit("scores:updated", { at: nowIso(), manual: true, matchId });
+    res.json({ ok: true, row: updated });
   }));
 
   router.post("/admin/password", asyncHandler(adminOnly), asyncHandler(async (req, res) => {

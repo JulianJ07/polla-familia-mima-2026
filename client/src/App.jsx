@@ -22,7 +22,7 @@ import {
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { io } from "socket.io-client";
-import { adminPost, apiGet } from "./api.js";
+import { adminPatch, adminPost, apiGet } from "./api.js";
 import stadiumImage from "./assets/stadium-night.png";
 
 const stages = [
@@ -482,6 +482,40 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
   const [message, setMessage] = useState("");
   const [logs, setLogs] = useState([]);
   const [newPassword, setNewPassword] = useState("");
+  const [includeTopScorers, setIncludeTopScorers] = useState(false);
+  const [adminMatches, setAdminMatches] = useState([]);
+  const [selectedMatchId, setSelectedMatchId] = useState("");
+  const [matchForm, setMatchForm] = useState({
+    home_team: "",
+    away_team: "",
+    home_goals: "",
+    away_goals: "",
+    status: "scheduled",
+    match_date: "",
+    manual_override: true,
+    locked: false
+  });
+
+  function dateForInput(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  }
+
+  function nullableNumber(value) {
+    return value === "" || value == null ? null : Number(value);
+  }
+
+  function syncMessage(summary) {
+    const games = summary?.games || {};
+    const scorers = summary?.topScorers || {};
+    const scorersText = includeTopScorers
+      ? ` Goleadores: ${scorers.skipped ? scorers.reason : `${scorers.updated || 0} actualizados`}.`
+      : "";
+    return `Sync listo: ${games.updated || 0} partidos actualizados, ${games.skippedLocked || 0} bloqueados omitidos.${scorersText}`;
+  }
 
   async function loadLogs() {
     if (!password) return;
@@ -493,13 +527,19 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     setLogs(data.rows || []);
   }
 
+  async function loadAdminMatches() {
+    const data = await apiGet("/matches?stage=all");
+    setAdminMatches(data.rows || []);
+  }
+
   async function handleSync() {
     setBusy(true);
     setMessage("");
     try {
-      const result = await adminPost("/admin/sync", password);
-      setMessage(`Sync listo: ${result.summary.games} partidos, ${result.summary.scorers} goleadores.`);
+      const result = await adminPost("/admin/sync", password, { includeTopScorers });
+      setMessage(syncMessage(result.summary));
       await loadLogs();
+      await loadAdminMatches();
       onDone();
     } catch (error) {
       setMessage(error.message);
@@ -514,6 +554,33 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     try {
       await adminPost("/scores/recalculate", password);
       setMessage("Tabla recalculada.");
+      await loadLogs();
+      onDone();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveMatch(event) {
+    event.preventDefault();
+    if (!selectedMatchId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await adminPatch(`/admin/matches/${encodeURIComponent(selectedMatchId)}`, password, {
+        home_team: matchForm.home_team,
+        away_team: matchForm.away_team,
+        home_goals: nullableNumber(matchForm.home_goals),
+        away_goals: nullableNumber(matchForm.away_goals),
+        status: matchForm.status,
+        match_date: matchForm.match_date ? new Date(matchForm.match_date).toISOString() : null,
+        manual_override: matchForm.manual_override,
+        locked: matchForm.locked
+      });
+      setMessage("Resultado manual guardado y tabla recalculada.");
+      await loadAdminMatches();
       await loadLogs();
       onDone();
     } catch (error) {
@@ -540,9 +607,36 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     }
   }
 
+  const selectedMatch = useMemo(
+    () => adminMatches.find((match) => match.match_id === selectedMatchId) || null,
+    [adminMatches, selectedMatchId]
+  );
+
   useEffect(() => {
     loadLogs().catch(() => {});
-  }, []);
+    loadAdminMatches().catch(() => {});
+  }, [password]);
+
+  useEffect(() => {
+    if (!adminMatches.length) return;
+    if (!selectedMatchId || !adminMatches.some((match) => match.match_id === selectedMatchId)) {
+      setSelectedMatchId(adminMatches[0].match_id);
+    }
+  }, [adminMatches, selectedMatchId]);
+
+  useEffect(() => {
+    if (!selectedMatch) return;
+    setMatchForm({
+      home_team: selectedMatch.home_team || "",
+      away_team: selectedMatch.away_team || "",
+      home_goals: selectedMatch.home_goals ?? "",
+      away_goals: selectedMatch.away_goals ?? "",
+      status: selectedMatch.status || "scheduled",
+      match_date: dateForInput(selectedMatch.match_date),
+      manual_override: selectedMatch.manual_override ?? true,
+      locked: selectedMatch.locked ?? false
+    });
+  }, [selectedMatch]);
 
   return (
     <section className="page-section">
@@ -559,6 +653,10 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
           <label className="field-label">
             Password
             <input className="text-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+          </label>
+          <label className="flex items-center gap-2 text-sm font-bold text-muted">
+            <input type="checkbox" checked={includeTopScorers} onChange={(event) => setIncludeTopScorers(event.target.checked)} />
+            Incluir goleadores
           </label>
           <div className="flex flex-wrap gap-3">
             <button className="secondary-button" type="button" onClick={handleSync} disabled={busy || !password}>
@@ -594,6 +692,107 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
             ))}
           </div>
         </div>
+
+        <form className="panel space-y-4 lg:col-span-2" onSubmit={handleSaveMatch}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="section-title">Resultado manual</h3>
+            {selectedMatch && (
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase text-muted">
+                {selectedMatch.stageLabel}
+              </span>
+            )}
+          </div>
+          <label className="field-label">
+            Partido
+            <select className="text-input" value={selectedMatchId} onChange={(event) => setSelectedMatchId(event.target.value)}>
+              {adminMatches.map((match) => (
+                <option key={match.match_id} value={match.match_id}>
+                  {match.match_id} - {match.home_team} vs {match.away_team}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="field-label">
+              Equipo local
+              <input
+                className="text-input"
+                value={matchForm.home_team}
+                onChange={(event) => setMatchForm((current) => ({ ...current, home_team: event.target.value }))}
+              />
+            </label>
+            <label className="field-label">
+              Equipo visitante
+              <input
+                className="text-input"
+                value={matchForm.away_team}
+                onChange={(event) => setMatchForm((current) => ({ ...current, away_team: event.target.value }))}
+              />
+            </label>
+            <label className="field-label">
+              Goles local
+              <input
+                className="text-input"
+                type="number"
+                min="0"
+                value={matchForm.home_goals}
+                onChange={(event) => setMatchForm((current) => ({ ...current, home_goals: event.target.value }))}
+              />
+            </label>
+            <label className="field-label">
+              Goles visitante
+              <input
+                className="text-input"
+                type="number"
+                min="0"
+                value={matchForm.away_goals}
+                onChange={(event) => setMatchForm((current) => ({ ...current, away_goals: event.target.value }))}
+              />
+            </label>
+            <label className="field-label">
+              Estado
+              <select
+                className="text-input"
+                value={matchForm.status}
+                onChange={(event) => setMatchForm((current) => ({ ...current, status: event.target.value }))}
+              >
+                <option value="scheduled">scheduled</option>
+                <option value="live">live</option>
+                <option value="finished">finished</option>
+              </select>
+            </label>
+            <label className="field-label">
+              Fecha
+              <input
+                className="text-input"
+                type="datetime-local"
+                value={matchForm.match_date}
+                onChange={(event) => setMatchForm((current) => ({ ...current, match_date: event.target.value }))}
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 text-sm font-bold text-muted">
+              <input
+                type="checkbox"
+                checked={matchForm.manual_override}
+                onChange={(event) => setMatchForm((current) => ({ ...current, manual_override: event.target.checked }))}
+              />
+              manual_override
+            </label>
+            <label className="flex items-center gap-2 text-sm font-bold text-muted">
+              <input
+                type="checkbox"
+                checked={matchForm.locked}
+                onChange={(event) => setMatchForm((current) => ({ ...current, locked: event.target.checked }))}
+              />
+              locked
+            </label>
+          </div>
+          <button className="primary-button" type="submit" disabled={busy || !password || !selectedMatchId}>
+            <CheckCircle2 size={18} /> Guardar resultado
+          </button>
+        </form>
 
         <div className="panel lg:col-span-2">
           <h3 className="section-title mb-4">Logs de sincronizacion</h3>
