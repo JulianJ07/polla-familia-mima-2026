@@ -1,0 +1,37 @@
+{
+  "name": "polla-familia-mima-2026",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "seed:sql": "node scripts/generate-supabase-seed.mjs",
+    "check": "npm run build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "framer-motion": "^12.24.1",
+    "lucide-react": "^0.560.0",
+    "node-cron": "^4.2.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@e965/xlsx": "^0.20.3",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^10.0.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "vite": "^7.3.0"
+  }
+}

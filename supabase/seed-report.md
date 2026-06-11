@@ -1,0 +1,233 @@
+# Seed extraction report
+
+Fuente: Polla Mundial 2026 1.xlsx
+
+## Counts
+
+- participants: 26
+- match_results: 104
+- predictions: 2600
+- group_predictions: 1200
+- individual_predictions: 25
+- warnings: 189
+
+## Participants
+
+- 1. Julia Yepes (hoja: Mima)
+- 2. Samuel Jiménez (hoja: Samuel Jiménez)
+- 3. Federico Jiménez (hoja: Federico Jiménez)
+- 4. María Clara Calle (hoja: María Clara Calle)
+- 5. Julián Jiménez (hoja: Julián Jiménez)
+- 6. Iván Darío (hoja: Iván Darío)
+- 7. Manuela Jiménez (hoja: Manuela Jiménez)
+- 8. Daniel Fajardo (hoja: Daniel Fajardo)
+- 9. Laura Villegas (hoja: Laura Villegas)
+- 10. Pablo Calle (hoja: Pablo Calle)
+- 11. Miguel Fajardo (hoja: Miguel Fajardo)
+- 12. Nancy (hoja: Nancy)
+- 13. Carlos Fajardo (hoja: Carlos Fajardo)
+- 14. Marta Jiménez (hoja: Marta Jiménez)
+- 15. Agustín Calle (hoja: Agustín Calle)
+- 16. Patricia Jiménez (hoja: Patricia Jiménez)
+- 17. Jorge Márquez (hoja: Jorge Márquez)
+- 18. Jerónimo López (hoja: Jerónimo López)
+- 19. Martín Álvarez (hoja: Martín Álvarez)
+- 20. Alejandro Márquez (hoja: Alejandro Márquez)
+- 21. Iván Tejada (hoja: Iván Tejada)
+- 22. Luis Fernando Puerta (hoja: Luis Fernando Puerta)
+- 23. Sebastián Londoño (hoja: Sebastián Londoño)
+- 24. Mónica Cardona (hoja: Mónica Cardona)
+- 25. Nicolás y Tomás Jaramillo's (hoja: Nicolás Jaramillo)
+- 26. Rafael Tejada (hoja: Rafael Tejada)
+
+## Celdas vacias o ambiguas
+
+- [warning] Jerónimo López / Jerónimo López / A2: A2 no trae nombre despues de PARTICIPANTE; se uso el nombre de la hoja: Jerónimo López.
+- [warning] Mónica Cardona / Mónica Cardona / A2: A2 no trae nombre despues de PARTICIPANTE; se uso el nombre de la hoja: Mónica Cardona.
+- [info] Samuel Jiménez / Samuel Jiménez / C3, D3: Marcador vacio para G-A-1.
+- [info] Samuel Jiménez / Samuel Jiménez / C4, D4: Marcador vacio para G-A-2.
+- [info] Samuel Jiménez / Samuel Jiménez / C5, D5: Marcador vacio para G-A-3.
+- [info] Samuel Jiménez / Samuel Jiménez / C6, D6: Marcador vacio para G-A-4.
+- [info] Samuel Jiménez / Samuel Jiménez / C7, D7: Marcador vacio para G-A-5.
+- [info] Samuel Jiménez / Samuel Jiménez / C8, D8: Marcador vacio para G-A-6.
+- [info] Samuel Jiménez / Samuel Jiménez / H3, I3: Marcador vacio para G-B-1.
+- [info] Samuel Jiménez / Samuel Jiménez / H4, I4: Marcador vacio para G-B-2.
+- [info] Samuel Jiménez / Samuel Jiménez / H5, I5: Marcador vacio para G-B-3.
+- [info] Samuel Jiménez / Samuel Jiménez / H6, I6: Marcador vacio para G-B-4.
+- [info] Samuel Jiménez / Samuel Jiménez / H7, I7: Marcador vacio para G-B-5.
+- [info] Samuel Jiménez / Samuel Jiménez / H8, I8: Marcador vacio para G-B-6.
+- [info] Samuel Jiménez / Samuel Jiménez / M3, N3: Marcador vacio para G-C-1.
+- [info] Samuel Jiménez / Samuel Jiménez / M4, N4: Marcador vacio para G-C-2.
+- [info] Samuel Jiménez / Samuel Jiménez / M5, N5: Marcador vacio para G-C-3.
+- [info] Samuel Jiménez / Samuel Jiménez / M6, N6: Marcador vacio para G-C-4.
+- [info] Samuel Jiménez / Samuel Jiménez / M7, N7: Marcador vacio para G-C-5.
+- [info] Samuel Jiménez / Samuel Jiménez / M8, N8: Marcador vacio para G-C-6.
+- [info] Samuel Jiménez / Samuel Jiménez / R3, S3: Marcador vacio para G-D-1.
+- [info] Samuel Jiménez / Samuel Jiménez / R4, S4: Marcador vacio para G-D-2.
+- [info] Samuel Jiménez / Samuel Jiménez / R5, S5: Marcador vacio para G-D-3.
+- [info] Samuel Jiménez / Samuel Jiménez / R6, S6: Marcador vacio para G-D-4.
+- [info] Samuel Jiménez / Samuel Jiménez / R7, S7: Marcador vacio para G-D-5.
+- [info] Samuel Jiménez / Samuel Jiménez / R8, S8: Marcador vacio para G-D-6.
+- [info] Samuel Jiménez / Samuel Jiménez / W3, X3: Marcador vacio para G-E-1.
+- [info] Samuel Jiménez / Samuel Jiménez / W4, X4: Marcador vacio para G-E-2.
+- [info] Samuel Jiménez / Samuel Jiménez / W5, X5: Marcador vacio para G-E-3.
+- [info] Samuel Jiménez / Samuel Jiménez / W6, X6: Marcador vacio para G-E-4.
+- [info] Samuel Jiménez / Samuel Jiménez / W7, X7: Marcador vacio para G-E-5.
+- [info] Samuel Jiménez / Samuel Jiménez / W8, X8: Marcador vacio para G-E-6.
+- [info] Samuel Jiménez / Samuel Jiménez / AB3, AC3: Marcador vacio para G-F-1.
+- [info] Samuel Jiménez / Samuel Jiménez / AB4, AC4: Marcador vacio para G-F-2.
+- [info] Samuel Jiménez / Samuel Jiménez / AB5, AC5: Marcador vacio para G-F-3.
+- [info] Samuel Jiménez / Samuel Jiménez / AB6, AC6: Marcador vacio para G-F-4.
+- [info] Samuel Jiménez / Samuel Jiménez / AB7, AC7: Marcador vacio para G-F-5.
+- [info] Samuel Jiménez / Samuel Jiménez / AB8, AC8: Marcador vacio para G-F-6.
+- [info] Samuel Jiménez / Samuel Jiménez / C13, D13: Marcador vacio para G-G-1.
+- [info] Samuel Jiménez / Samuel Jiménez / C14, D14: Marcador vacio para G-G-2.
+- [info] Samuel Jiménez / Samuel Jiménez / C15, D15: Marcador vacio para G-G-3.
+- [info] Samuel Jiménez / Samuel Jiménez / C16, D16: Marcador vacio para G-G-4.
+- [info] Samuel Jiménez / Samuel Jiménez / C17, D17: Marcador vacio para G-G-5.
+- [info] Samuel Jiménez / Samuel Jiménez / C18, D18: Marcador vacio para G-G-6.
+- [info] Samuel Jiménez / Samuel Jiménez / H13, I13: Marcador vacio para G-H-1.
+- [info] Samuel Jiménez / Samuel Jiménez / H14, I14: Marcador vacio para G-H-2.
+- [info] Samuel Jiménez / Samuel Jiménez / H15, I15: Marcador vacio para G-H-3.
+- [info] Samuel Jiménez / Samuel Jiménez / H16, I16: Marcador vacio para G-H-4.
+- [info] Samuel Jiménez / Samuel Jiménez / H17, I17: Marcador vacio para G-H-5.
+- [info] Samuel Jiménez / Samuel Jiménez / H18, I18: Marcador vacio para G-H-6.
+- [info] Samuel Jiménez / Samuel Jiménez / M13, N13: Marcador vacio para G-I-1.
+- [info] Samuel Jiménez / Samuel Jiménez / M14, N14: Marcador vacio para G-I-2.
+- [info] Samuel Jiménez / Samuel Jiménez / M15, N15: Marcador vacio para G-I-3.
+- [info] Samuel Jiménez / Samuel Jiménez / M16, N16: Marcador vacio para G-I-4.
+- [info] Samuel Jiménez / Samuel Jiménez / M17, N17: Marcador vacio para G-I-5.
+- [info] Samuel Jiménez / Samuel Jiménez / M18, N18: Marcador vacio para G-I-6.
+- [info] Samuel Jiménez / Samuel Jiménez / R13, S13: Marcador vacio para G-J-1.
+- [info] Samuel Jiménez / Samuel Jiménez / R14, S14: Marcador vacio para G-J-2.
+- [info] Samuel Jiménez / Samuel Jiménez / R15, S15: Marcador vacio para G-J-3.
+- [info] Samuel Jiménez / Samuel Jiménez / R16, S16: Marcador vacio para G-J-4.
+- [info] Samuel Jiménez / Samuel Jiménez / R17, S17: Marcador vacio para G-J-5.
+- [info] Samuel Jiménez / Samuel Jiménez / R18, S18: Marcador vacio para G-J-6.
+- [info] Samuel Jiménez / Samuel Jiménez / W13, X13: Marcador vacio para G-K-1.
+- [info] Samuel Jiménez / Samuel Jiménez / W14, X14: Marcador vacio para G-K-2.
+- [info] Samuel Jiménez / Samuel Jiménez / W15, X15: Marcador vacio para G-K-3.
+- [info] Samuel Jiménez / Samuel Jiménez / W16, X16: Marcador vacio para G-K-4.
+- [info] Samuel Jiménez / Samuel Jiménez / W17, X17: Marcador vacio para G-K-5.
+- [info] Samuel Jiménez / Samuel Jiménez / W18, X18: Marcador vacio para G-K-6.
+- [info] Samuel Jiménez / Samuel Jiménez / AB13, AC13: Marcador vacio para G-L-1.
+- [info] Samuel Jiménez / Samuel Jiménez / AB14, AC14: Marcador vacio para G-L-2.
+- [info] Samuel Jiménez / Samuel Jiménez / AB15, AC15: Marcador vacio para G-L-3.
+- [info] Samuel Jiménez / Samuel Jiménez / AB16, AC16: Marcador vacio para G-L-4.
+- [info] Samuel Jiménez / Samuel Jiménez / AB17, AC17: Marcador vacio para G-L-5.
+- [info] Samuel Jiménez / Samuel Jiménez / AB18, AC18: Marcador vacio para G-L-6.
+- [info] Samuel Jiménez / Samuel Jiménez / E9: Equipo vacio para A1.
+- [info] Samuel Jiménez / Samuel Jiménez / E10: Equipo vacio para A2.
+- [info] Samuel Jiménez / Samuel Jiménez / E11: Equipo vacio para A3.
+- [info] Samuel Jiménez / Samuel Jiménez / E12: Equipo vacio para A4.
+- [info] Samuel Jiménez / Samuel Jiménez / J9: Equipo vacio para B1.
+- [info] Samuel Jiménez / Samuel Jiménez / J10: Equipo vacio para B2.
+- [info] Samuel Jiménez / Samuel Jiménez / J11: Equipo vacio para B3.
+- [info] Samuel Jiménez / Samuel Jiménez / J12: Equipo vacio para B4.
+- [info] Samuel Jiménez / Samuel Jiménez / O9: Equipo vacio para C1.
+- [info] Samuel Jiménez / Samuel Jiménez / O10: Equipo vacio para C2.
+- [info] Samuel Jiménez / Samuel Jiménez / O11: Equipo vacio para C3.
+- [info] Samuel Jiménez / Samuel Jiménez / O12: Equipo vacio para C4.
+- [info] Samuel Jiménez / Samuel Jiménez / T9: Equipo vacio para D1.
+- [info] Samuel Jiménez / Samuel Jiménez / T10: Equipo vacio para D2.
+- [info] Samuel Jiménez / Samuel Jiménez / T11: Equipo vacio para D3.
+- [info] Samuel Jiménez / Samuel Jiménez / T12: Equipo vacio para D4.
+- [info] Samuel Jiménez / Samuel Jiménez / Y9: Equipo vacio para E1.
+- [info] Samuel Jiménez / Samuel Jiménez / Y10: Equipo vacio para E2.
+- [info] Samuel Jiménez / Samuel Jiménez / Y11: Equipo vacio para E3.
+- [info] Samuel Jiménez / Samuel Jiménez / Y12: Equipo vacio para E4.
+- [info] Samuel Jiménez / Samuel Jiménez / AD9: Equipo vacio para F1.
+- [info] Samuel Jiménez / Samuel Jiménez / AD10: Equipo vacio para F2.
+- [info] Samuel Jiménez / Samuel Jiménez / AD11: Equipo vacio para F3.
+- [info] Samuel Jiménez / Samuel Jiménez / AD12: Equipo vacio para F4.
+- [info] Samuel Jiménez / Samuel Jiménez / E19: Equipo vacio para G1.
+- [info] Samuel Jiménez / Samuel Jiménez / E20: Equipo vacio para G2.
+- [info] Samuel Jiménez / Samuel Jiménez / E21: Equipo vacio para G3.
+- [info] Samuel Jiménez / Samuel Jiménez / E22: Equipo vacio para G4.
+- [info] Samuel Jiménez / Samuel Jiménez / J19: Equipo vacio para H1.
+- [info] Samuel Jiménez / Samuel Jiménez / J20: Equipo vacio para H2.
+- [info] Samuel Jiménez / Samuel Jiménez / J21: Equipo vacio para H3.
+- [info] Samuel Jiménez / Samuel Jiménez / J22: Equipo vacio para H4.
+- [info] Samuel Jiménez / Samuel Jiménez / O19: Equipo vacio para I1.
+- [info] Samuel Jiménez / Samuel Jiménez / O20: Equipo vacio para I2.
+- [info] Samuel Jiménez / Samuel Jiménez / O21: Equipo vacio para I3.
+- [info] Samuel Jiménez / Samuel Jiménez / O22: Equipo vacio para I4.
+- [info] Samuel Jiménez / Samuel Jiménez / T19: Equipo vacio para J1.
+- [info] Samuel Jiménez / Samuel Jiménez / T20: Equipo vacio para J2.
+- [info] Samuel Jiménez / Samuel Jiménez / T21: Equipo vacio para J3.
+- [info] Samuel Jiménez / Samuel Jiménez / T22: Equipo vacio para J4.
+- [info] Samuel Jiménez / Samuel Jiménez / Y19: Equipo vacio para K1.
+- [info] Samuel Jiménez / Samuel Jiménez / Y20: Equipo vacio para K2.
+- [info] Samuel Jiménez / Samuel Jiménez / Y21: Equipo vacio para K3.
+- [info] Samuel Jiménez / Samuel Jiménez / Y22: Equipo vacio para K4.
+- [info] Samuel Jiménez / Samuel Jiménez / AD19: Equipo vacio para L1.
+- [info] Samuel Jiménez / Samuel Jiménez / AD20: Equipo vacio para L2.
+- [info] Samuel Jiménez / Samuel Jiménez / AD21: Equipo vacio para L3.
+- [info] Samuel Jiménez / Samuel Jiménez / AD22: Equipo vacio para L4.
+- [info] Samuel Jiménez / Samuel Jiménez / C24, D24: Marcador vacio para M1.
+- [info] Samuel Jiménez / Samuel Jiménez / B24, E24: Equipos vacios para M1.
+- [info] Samuel Jiménez / Samuel Jiménez / H24, I24: Marcador vacio para M9.
+- [info] Samuel Jiménez / Samuel Jiménez / G24, J24: Equipos vacios para M9.
+- [info] Samuel Jiménez / Samuel Jiménez / M24, N24: Marcador vacio para O1.
+- [info] Samuel Jiménez / Samuel Jiménez / L24, O24: Equipos vacios para O1.
+- [info] Samuel Jiménez / Samuel Jiménez / C25, D25: Marcador vacio para M2.
+- [info] Samuel Jiménez / Samuel Jiménez / B25, E25: Equipos vacios para M2.
+- [info] Samuel Jiménez / Samuel Jiménez / H25, I25: Marcador vacio para M10.
+- [info] Samuel Jiménez / Samuel Jiménez / G25, J25: Equipos vacios para M10.
+- [info] Samuel Jiménez / Samuel Jiménez / M25, N25: Marcador vacio para O2.
+- [info] Samuel Jiménez / Samuel Jiménez / L25, O25: Equipos vacios para O2.
+- [info] Samuel Jiménez / Samuel Jiménez / C26, D26: Marcador vacio para M3.
+- [info] Samuel Jiménez / Samuel Jiménez / B26, E26: Equipos vacios para M3.
+- [info] Samuel Jiménez / Samuel Jiménez / H26, I26: Marcador vacio para M11.
+- [info] Samuel Jiménez / Samuel Jiménez / G26, J26: Equipos vacios para M11.
+- [info] Samuel Jiménez / Samuel Jiménez / M26, N26: Marcador vacio para O3.
+- [info] Samuel Jiménez / Samuel Jiménez / L26, O26: Equipos vacios para O3.
+- [info] Samuel Jiménez / Samuel Jiménez / C27, D27: Marcador vacio para M4.
+- [info] Samuel Jiménez / Samuel Jiménez / B27, E27: Equipos vacios para M4.
+- [info] Samuel Jiménez / Samuel Jiménez / H27, I27: Marcador vacio para M12.
+- [info] Samuel Jiménez / Samuel Jiménez / G27, J27: Equipos vacios para M12.
+- [info] Samuel Jiménez / Samuel Jiménez / M27, N27: Marcador vacio para O4.
+- [info] Samuel Jiménez / Samuel Jiménez / L27, O27: Equipos vacios para O4.
+- [info] Samuel Jiménez / Samuel Jiménez / C28, D28: Marcador vacio para M5.
+- [info] Samuel Jiménez / Samuel Jiménez / B28, E28: Equipos vacios para M5.
+- [info] Samuel Jiménez / Samuel Jiménez / H28, I28: Marcador vacio para M13.
+- [info] Samuel Jiménez / Samuel Jiménez / G28, J28: Equipos vacios para M13.
+- [info] Samuel Jiménez / Samuel Jiménez / M28, N28: Marcador vacio para O5.
+- [info] Samuel Jiménez / Samuel Jiménez / L28, O28: Equipos vacios para O5.
+- [info] Samuel Jiménez / Samuel Jiménez / C29, D29: Marcador vacio para M6.
+- [info] Samuel Jiménez / Samuel Jiménez / B29, E29: Equipos vacios para M6.
+- [info] Samuel Jiménez / Samuel Jiménez / H29, I29: Marcador vacio para M14.
+- [info] Samuel Jiménez / Samuel Jiménez / G29, J29: Equipos vacios para M14.
+- [info] Samuel Jiménez / Samuel Jiménez / M29, N29: Marcador vacio para O6.
+- [info] Samuel Jiménez / Samuel Jiménez / L29, O29: Equipos vacios para O6.
+- [info] Samuel Jiménez / Samuel Jiménez / C30, D30: Marcador vacio para M7.
+- [info] Samuel Jiménez / Samuel Jiménez / B30, E30: Equipos vacios para M7.
+- [info] Samuel Jiménez / Samuel Jiménez / H30, I30: Marcador vacio para M15.
+- [info] Samuel Jiménez / Samuel Jiménez / G30, J30: Equipos vacios para M15.
+- [info] Samuel Jiménez / Samuel Jiménez / M30, N30: Marcador vacio para O7.
+- [info] Samuel Jiménez / Samuel Jiménez / L30, O30: Equipos vacios para O7.
+- [info] Samuel Jiménez / Samuel Jiménez / C31, D31: Marcador vacio para M8.
+- [info] Samuel Jiménez / Samuel Jiménez / B31, E31: Equipos vacios para M8.
+- [info] Samuel Jiménez / Samuel Jiménez / H31, I31: Marcador vacio para M16.
+- [info] Samuel Jiménez / Samuel Jiménez / G31, J31: Equipos vacios para M16.
+- [info] Samuel Jiménez / Samuel Jiménez / M31, N31: Marcador vacio para O8.
+- [info] Samuel Jiménez / Samuel Jiménez / L31, O31: Equipos vacios para O8.
+- [info] Samuel Jiménez / Samuel Jiménez / R25, S25: Marcador vacio para Q1.
+- [info] Samuel Jiménez / Samuel Jiménez / Q25, T25: Equipos vacios para Q1.
+- [info] Samuel Jiménez / Samuel Jiménez / R27, S27: Marcador vacio para Q2.
+- [info] Samuel Jiménez / Samuel Jiménez / Q27, T27: Equipos vacios para Q2.
+- [info] Samuel Jiménez / Samuel Jiménez / R29, S29: Marcador vacio para Q3.
+- [info] Samuel Jiménez / Samuel Jiménez / Q29, T29: Equipos vacios para Q3.
+- [info] Samuel Jiménez / Samuel Jiménez / R31, S31: Marcador vacio para Q4.
+- [info] Samuel Jiménez / Samuel Jiménez / Q31, T31: Equipos vacios para Q4.
+- [info] Samuel Jiménez / Samuel Jiménez / W25, X25: Marcador vacio para S1.
+- [info] Samuel Jiménez / Samuel Jiménez / V25, Y25: Equipos vacios para S1.
+- [info] Samuel Jiménez / Samuel Jiménez / W28, X28: Marcador vacio para S2.
+- [info] Samuel Jiménez / Samuel Jiménez / V28, Y28: Equipos vacios para S2.
+- [info] Samuel Jiménez / Samuel Jiménez / AB27, AC27: Marcador vacio para FINAL.
+- [info] Samuel Jiménez / Samuel Jiménez / AA27, AD27: Equipos vacios para FINAL.
+- [info] Samuel Jiménez / Samuel Jiménez / AB31, AC31: Marcador vacio para THIRD.
+- [info] Samuel Jiménez / Samuel Jiménez / AA31, AD31: Equipos vacios para THIRD.
+- [info] Samuel Jiménez / Samuel Jiménez / P32: Goleador vacio.
+- [info] Samuel Jiménez / Samuel Jiménez / P33: Mejor jugador vacio.
+- [info] Samuel Jiménez / Samuel Jiménez / P34: Mejor arquero vacio.

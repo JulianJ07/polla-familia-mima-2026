@@ -1,0 +1,1658 @@
+{
+  "source": "C:\\Users\\Julian\\Downloads\\Polla Mundial 2026 1.xlsx",
+  "generated_at": "2026-06-10T23:30:19.362Z",
+  "counts": {
+    "participants": 26,
+    "match_results": 104,
+    "predictions": 2600,
+    "group_predictions": 1200,
+    "individual_predictions": 25,
+    "warnings": 189
+  },
+  "participants": [
+    {
+      "id": 1,
+      "sheetName": "Mima",
+      "name": "Julia Yepes"
+    },
+    {
+      "id": 2,
+      "sheetName": "Samuel Jiménez",
+      "name": "Samuel Jiménez"
+    },
+    {
+      "id": 3,
+      "sheetName": "Federico Jiménez",
+      "name": "Federico Jiménez"
+    },
+    {
+      "id": 4,
+      "sheetName": "María Clara Calle",
+      "name": "María Clara Calle"
+    },
+    {
+      "id": 5,
+      "sheetName": "Julián Jiménez",
+      "name": "Julián Jiménez"
+    },
+    {
+      "id": 6,
+      "sheetName": "Iván Darío",
+      "name": "Iván Darío"
+    },
+    {
+      "id": 7,
+      "sheetName": "Manuela Jiménez",
+      "name": "Manuela Jiménez"
+    },
+    {
+      "id": 8,
+      "sheetName": "Daniel Fajardo",
+      "name": "Daniel Fajardo"
+    },
+    {
+      "id": 9,
+      "sheetName": "Laura Villegas",
+      "name": "Laura Villegas"
+    },
+    {
+      "id": 10,
+      "sheetName": "Pablo Calle",
+      "name": "Pablo Calle"
+    },
+    {
+      "id": 11,
+      "sheetName": "Miguel Fajardo",
+      "name": "Miguel Fajardo"
+    },
+    {
+      "id": 12,
+      "sheetName": "Nancy",
+      "name": "Nancy"
+    },
+    {
+      "id": 13,
+      "sheetName": "Carlos Fajardo",
+      "name": "Carlos Fajardo"
+    },
+    {
+      "id": 14,
+      "sheetName": "Marta Jiménez",
+      "name": "Marta Jiménez"
+    },
+    {
+      "id": 15,
+      "sheetName": "Agustín Calle",
+      "name": "Agustín Calle"
+    },
+    {
+      "id": 16,
+      "sheetName": "Patricia Jiménez",
+      "name": "Patricia Jiménez"
+    },
+    {
+      "id": 17,
+      "sheetName": "Jorge Márquez",
+      "name": "Jorge Márquez"
+    },
+    {
+      "id": 18,
+      "sheetName": "Jerónimo López",
+      "name": "Jerónimo López"
+    },
+    {
+      "id": 19,
+      "sheetName": "Martín Álvarez",
+      "name": "Martín Álvarez"
+    },
+    {
+      "id": 20,
+      "sheetName": "Alejandro Márquez",
+      "name": "Alejandro Márquez"
+    },
+    {
+      "id": 21,
+      "sheetName": "Iván Tejada",
+      "name": "Iván Tejada"
+    },
+    {
+      "id": 22,
+      "sheetName": "Luis Fernando Puerta",
+      "name": "Luis Fernando Puerta"
+    },
+    {
+      "id": 23,
+      "sheetName": "Sebastián Londoño",
+      "name": "Sebastián Londoño"
+    },
+    {
+      "id": 24,
+      "sheetName": "Mónica Cardona",
+      "name": "Mónica Cardona"
+    },
+    {
+      "id": 25,
+      "sheetName": "Nicolás Jaramillo",
+      "name": "Nicolás y Tomás Jaramillo's"
+    },
+    {
+      "id": 26,
+      "sheetName": "Rafael Tejada",
+      "name": "Rafael Tejada"
+    }
+  ],
+  "warnings": [
+    {
+      "severity": "warning",
+      "participant": "Jerónimo López",
+      "sheet": "Jerónimo López",
+      "cell": "A2",
+      "type": "missing_participant_name",
+      "message": "A2 no trae nombre despues de PARTICIPANTE; se uso el nombre de la hoja: Jerónimo López."
+    },
+    {
+      "severity": "warning",
+      "participant": "Mónica Cardona",
+      "sheet": "Mónica Cardona",
+      "cell": "A2",
+      "type": "missing_participant_name",
+      "message": "A2 no trae nombre despues de PARTICIPANTE; se uso el nombre de la hoja: Mónica Cardona."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C3, D3",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-A-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C4, D4",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-A-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C5, D5",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-A-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C6, D6",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-A-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C7, D7",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-A-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C8, D8",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-A-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H3, I3",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-B-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H4, I4",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-B-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H5, I5",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-B-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H6, I6",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-B-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H7, I7",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-B-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H8, I8",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-B-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M3, N3",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-C-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M4, N4",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-C-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M5, N5",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-C-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M6, N6",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-C-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M7, N7",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-C-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M8, N8",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-C-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R3, S3",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-D-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R4, S4",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-D-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R5, S5",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-D-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R6, S6",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-D-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R7, S7",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-D-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R8, S8",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-D-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W3, X3",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-E-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W4, X4",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-E-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W5, X5",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-E-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W6, X6",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-E-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W7, X7",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-E-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W8, X8",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-E-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB3, AC3",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-F-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB4, AC4",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-F-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB5, AC5",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-F-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB6, AC6",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-F-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB7, AC7",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-F-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB8, AC8",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-F-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C13, D13",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-G-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C14, D14",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-G-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C15, D15",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-G-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C16, D16",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-G-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C17, D17",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-G-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C18, D18",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-G-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H13, I13",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-H-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H14, I14",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-H-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H15, I15",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-H-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H16, I16",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-H-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H17, I17",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-H-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H18, I18",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-H-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M13, N13",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-I-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M14, N14",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-I-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M15, N15",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-I-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M16, N16",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-I-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M17, N17",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-I-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M18, N18",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-I-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R13, S13",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-J-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R14, S14",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-J-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R15, S15",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-J-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R16, S16",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-J-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R17, S17",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-J-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R18, S18",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-J-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W13, X13",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-K-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W14, X14",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-K-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W15, X15",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-K-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W16, X16",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-K-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W17, X17",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-K-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W18, X18",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-K-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB13, AC13",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-L-1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB14, AC14",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-L-2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB15, AC15",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-L-3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB16, AC16",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-L-4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB17, AC17",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-L-5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB18, AC18",
+      "type": "missing_score",
+      "message": "Marcador vacio para G-L-6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E9",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para A1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E10",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para A2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E11",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para A3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E12",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para A4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J9",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para B1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J10",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para B2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J11",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para B3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J12",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para B4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O9",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para C1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O10",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para C2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O11",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para C3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O12",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para C4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T9",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para D1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T10",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para D2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T11",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para D3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T12",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para D4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y9",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para E1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y10",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para E2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y11",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para E3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y12",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para E4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD9",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para F1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD10",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para F2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD11",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para F3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD12",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para F4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E19",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para G1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E20",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para G2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E21",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para G3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "E22",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para G4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J19",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para H1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J20",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para H2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J21",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para H3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "J22",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para H4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O19",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para I1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O20",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para I2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O21",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para I3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "O22",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para I4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T19",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para J1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T20",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para J2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T21",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para J3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "T22",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para J4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y19",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para K1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y20",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para K2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y21",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para K3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Y22",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para K4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD19",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para L1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD20",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para L2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD21",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para L3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AD22",
+      "type": "missing_group_position",
+      "message": "Equipo vacio para L4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C24, D24",
+      "type": "missing_score",
+      "message": "Marcador vacio para M1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B24, E24",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H24, I24",
+      "type": "missing_score",
+      "message": "Marcador vacio para M9."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G24, J24",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M9."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M24, N24",
+      "type": "missing_score",
+      "message": "Marcador vacio para O1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L24, O24",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C25, D25",
+      "type": "missing_score",
+      "message": "Marcador vacio para M2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B25, E25",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H25, I25",
+      "type": "missing_score",
+      "message": "Marcador vacio para M10."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G25, J25",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M10."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M25, N25",
+      "type": "missing_score",
+      "message": "Marcador vacio para O2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L25, O25",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C26, D26",
+      "type": "missing_score",
+      "message": "Marcador vacio para M3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B26, E26",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H26, I26",
+      "type": "missing_score",
+      "message": "Marcador vacio para M11."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G26, J26",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M11."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M26, N26",
+      "type": "missing_score",
+      "message": "Marcador vacio para O3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L26, O26",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C27, D27",
+      "type": "missing_score",
+      "message": "Marcador vacio para M4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B27, E27",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H27, I27",
+      "type": "missing_score",
+      "message": "Marcador vacio para M12."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G27, J27",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M12."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M27, N27",
+      "type": "missing_score",
+      "message": "Marcador vacio para O4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L27, O27",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C28, D28",
+      "type": "missing_score",
+      "message": "Marcador vacio para M5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B28, E28",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H28, I28",
+      "type": "missing_score",
+      "message": "Marcador vacio para M13."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G28, J28",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M13."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M28, N28",
+      "type": "missing_score",
+      "message": "Marcador vacio para O5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L28, O28",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O5."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C29, D29",
+      "type": "missing_score",
+      "message": "Marcador vacio para M6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B29, E29",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H29, I29",
+      "type": "missing_score",
+      "message": "Marcador vacio para M14."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G29, J29",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M14."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M29, N29",
+      "type": "missing_score",
+      "message": "Marcador vacio para O6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L29, O29",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O6."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C30, D30",
+      "type": "missing_score",
+      "message": "Marcador vacio para M7."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B30, E30",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M7."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H30, I30",
+      "type": "missing_score",
+      "message": "Marcador vacio para M15."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G30, J30",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M15."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M30, N30",
+      "type": "missing_score",
+      "message": "Marcador vacio para O7."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L30, O30",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O7."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "C31, D31",
+      "type": "missing_score",
+      "message": "Marcador vacio para M8."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "B31, E31",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M8."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "H31, I31",
+      "type": "missing_score",
+      "message": "Marcador vacio para M16."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "G31, J31",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para M16."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "M31, N31",
+      "type": "missing_score",
+      "message": "Marcador vacio para O8."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "L31, O31",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para O8."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R25, S25",
+      "type": "missing_score",
+      "message": "Marcador vacio para Q1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Q25, T25",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para Q1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R27, S27",
+      "type": "missing_score",
+      "message": "Marcador vacio para Q2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Q27, T27",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para Q2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R29, S29",
+      "type": "missing_score",
+      "message": "Marcador vacio para Q3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Q29, T29",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para Q3."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "R31, S31",
+      "type": "missing_score",
+      "message": "Marcador vacio para Q4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "Q31, T31",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para Q4."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W25, X25",
+      "type": "missing_score",
+      "message": "Marcador vacio para S1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "V25, Y25",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para S1."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "W28, X28",
+      "type": "missing_score",
+      "message": "Marcador vacio para S2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "V28, Y28",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para S2."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB27, AC27",
+      "type": "missing_score",
+      "message": "Marcador vacio para FINAL."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AA27, AD27",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para FINAL."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AB31, AC31",
+      "type": "missing_score",
+      "message": "Marcador vacio para THIRD."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "AA31, AD31",
+      "type": "missing_knockout_teams",
+      "message": "Equipos vacios para THIRD."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "P32",
+      "type": "missing_top_scorer",
+      "message": "Goleador vacio."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "P33",
+      "type": "missing_best_player",
+      "message": "Mejor jugador vacio."
+    },
+    {
+      "severity": "info",
+      "participant": "Samuel Jiménez",
+      "sheet": "Samuel Jiménez",
+      "cell": "P34",
+      "type": "missing_best_goalkeeper",
+      "message": "Mejor arquero vacio."
+    }
+  ]
+}
