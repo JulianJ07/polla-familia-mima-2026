@@ -664,12 +664,14 @@ function MatchesView({ matches, stage, setStage }) {
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase();
     return matches.filter((match) => {
+      const stageOk = stage === "all" || match.stage === stage;
+      if (!stageOk) return false;
       const groupOk = groupFilter === "all" || groupCodeFromMatch(match) === groupFilter;
       if (!groupOk) return false;
       if (!search) return true;
       return `${match.home_team} ${match.away_team} ${match.stageLabel} ${match.match_id}`.toLowerCase().includes(search);
     });
-  }, [groupFilter, matches, query]);
+  }, [groupFilter, matches, query, stage]);
 
   useEffect(() => {
     if (stage !== "group") setGroupFilter("all");
@@ -1584,7 +1586,7 @@ export default function App() {
       const [metaData, leaderboardData, matchesData, bracketData, awardsData] = await Promise.all([
         apiGet("/meta"),
         apiGet("/leaderboard"),
-        apiGet(`/matches?stage=${stage}`),
+        apiGet("/matches?stage=all"),
         apiGet("/bracket"),
         apiGet("/awards")
       ]);
@@ -1603,7 +1605,7 @@ export default function App() {
 
   useEffect(() => {
     refreshAll();
-  }, [stage]);
+  }, []);
 
   useEffect(() => {
     if (!selectedParticipant) return;
