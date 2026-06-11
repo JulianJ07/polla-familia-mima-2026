@@ -128,6 +128,11 @@ function colombiaDateTimeToIso(value) {
   return new Date(`${value}:00-05:00`).toISOString();
 }
 
+function groupCodeFromMatch(match) {
+  const [, groupCode] = String(match?.match_id || "").match(/^G-([A-L])-/i) || [];
+  return groupCode?.toUpperCase() || "";
+}
+
 function AnimatedNumber({ value }) {
   const motionValue = useMotionValue(0);
   const rounded = useTransform(motionValue, (latest) => formatPoints(latest));
@@ -476,13 +481,24 @@ function ParticipantPanel({ detail }) {
 
 function MatchesView({ matches, stage, setStage }) {
   const [query, setQuery] = useState("");
+  const [groupFilter, setGroupFilter] = useState("all");
+  const groupOptions = useMemo(() => {
+    const options = [...new Set(matches.map(groupCodeFromMatch).filter(Boolean))].sort();
+    return ["all", ...options];
+  }, [matches]);
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase();
     return matches.filter((match) => {
+      const groupOk = groupFilter === "all" || groupCodeFromMatch(match) === groupFilter;
+      if (!groupOk) return false;
       if (!search) return true;
-      return `${match.home_team} ${match.away_team} ${match.stageLabel}`.toLowerCase().includes(search);
+      return `${match.home_team} ${match.away_team} ${match.stageLabel} ${match.match_id}`.toLowerCase().includes(search);
     });
-  }, [matches, query]);
+  }, [groupFilter, matches, query]);
+
+  useEffect(() => {
+    if (stage !== "group") setGroupFilter("all");
+  }, [stage]);
 
   return (
     <section className="page-section">
@@ -504,6 +520,21 @@ function MatchesView({ matches, stage, setStage }) {
           </button>
         ))}
       </div>
+
+      {stage === "group" && groupOptions.length > 1 && (
+        <div className="group-filter-tabs">
+          {groupOptions.map((groupCode) => (
+            <button
+              key={groupCode}
+              className={cx("group-filter-button", groupFilter === groupCode && "group-filter-button-active")}
+              onClick={() => setGroupFilter(groupCode)}
+              type="button"
+            >
+              {groupCode === "all" ? "Todos" : groupCode}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="match-grid">
         {filtered.map((match) => (
@@ -575,15 +606,15 @@ function BracketColumn({ label, matches, side, stage }) {
 }
 
 function BracketView({ bracket }) {
-  const [zoom, setZoom] = useState(0.88);
+  const [zoom, setZoom] = useState(0.76);
   const r32 = bracket.r32 || [];
   const r16 = bracket.r16 || [];
   const qf = bracket.qf || [];
   const sf = bracket.sf || [];
   const finalMatch = bracket.final?.[0];
   const thirdMatch = bracket.third?.[0];
-  const width = 1420;
-  const height = 850;
+  const width = 1680;
+  const height = 1160;
 
   const columns = [
     { label: "16avos", matches: r32.slice(0, 8), side: "left", stage: "r32" },
@@ -648,7 +679,14 @@ function BracketView({ bracket }) {
 }
 
 function AwardsView({ awards }) {
+  const [participantQuery, setParticipantQuery] = useState("");
   const leaderGoals = Math.max(1, ...((awards.topScorers || []).map((item) => item.goals)));
+  const filteredPredictions = useMemo(() => {
+    const search = participantQuery.trim().toLowerCase();
+    if (!search) return awards.predictions || [];
+    return (awards.predictions || []).filter((item) => item.name.toLowerCase().includes(search));
+  }, [awards.predictions, participantQuery]);
+
   return (
     <section className="page-section">
       <div className="section-heading">
@@ -656,12 +694,22 @@ function AwardsView({ awards }) {
           <p className="eyebrow">Goleadores</p>
           <h2 className="page-title">Apuestas individuales</h2>
         </div>
-        <Goal className="text-gold" size={32} />
+        <label className="search-box awards-search">
+          <Search size={17} />
+          <input
+            value={participantQuery}
+            onChange={(event) => setParticipantQuery(event.target.value)}
+            placeholder="Buscar participante"
+          />
+        </label>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+      <div className="awards-layout">
         <div className="panel">
-          <h3 className="section-title mb-4">Tabla de goleadores</h3>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="section-title">Tabla de goleadores</h3>
+            <Goal className="text-gold" size={26} />
+          </div>
           <div className="space-y-3">
             {(awards.topScorers || []).map((player, index) => (
               <div key={player.player_name} className="scorer-row">
@@ -678,8 +726,13 @@ function AwardsView({ awards }) {
           </div>
         </div>
 
-        <div className="award-grid">
-          {(awards.predictions || []).map((item) => (
+        <div className="panel awards-predictions-panel">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <h3 className="section-title">Participantes</h3>
+            <span className="text-xs font-black uppercase text-muted">{filteredPredictions.length} visibles</span>
+          </div>
+          <div className="award-grid">
+          {filteredPredictions.map((item) => (
             <article key={item.participant_id} className="award-card">
               <div className="mb-3 flex items-center justify-between">
                 <strong className="truncate text-white">{item.name}</strong>
@@ -690,6 +743,12 @@ function AwardsView({ awards }) {
               <AwardLine label="Guante de Oro" value={item.best_goalkeeper} actual={awards.results?.best_goalkeeper} points={6} />
             </article>
           ))}
+          {!filteredPredictions.length && (
+            <div className="rounded-md border border-white/10 bg-white/6 p-4 text-sm font-bold text-muted">
+              No hay participantes con ese nombre.
+            </div>
+          )}
+          </div>
         </div>
       </div>
     </section>
