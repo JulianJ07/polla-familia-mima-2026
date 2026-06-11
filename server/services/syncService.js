@@ -1,6 +1,29 @@
 import { assertNoError, insertLog, nowIso, requireSupabase } from "../db/supabase.js";
 import { recalculateAllScores } from "./scoring.js";
 
+const fifaMatchIdMap = {
+  1: "G-A-1", 2: "G-A-2", 3: "G-B-1", 4: "G-D-1", 5: "G-C-2", 6: "G-D-2", 7: "G-C-1", 8: "G-B-2",
+  9: "G-E-1", 10: "G-F-1", 11: "G-E-2", 12: "G-F-2", 13: "G-H-1", 14: "G-G-2", 15: "G-H-2", 16: "G-G-1",
+  17: "G-I-1", 18: "G-I-2", 19: "G-J-1", 20: "G-J-2", 21: "G-K-1", 22: "G-L-1", 23: "G-L-2", 24: "G-K-2",
+  25: "G-A-3", 26: "G-B-3", 27: "G-B-4", 28: "G-A-4", 29: "G-D-4", 30: "G-C-4", 31: "G-D-3", 32: "G-C-3",
+  33: "G-E-3", 34: "G-E-4", 35: "G-F-3", 36: "G-F-4", 37: "G-H-4", 38: "G-G-4", 39: "G-H-3", 40: "G-G-3",
+  41: "G-I-3", 42: "G-I-4", 43: "G-J-3", 44: "G-J-4", 45: "G-K-3", 46: "G-L-4", 47: "G-K-4", 48: "G-L-3",
+  49: "G-C-5", 50: "G-C-6", 51: "G-B-6", 52: "G-A-5", 53: "G-A-6", 54: "G-B-5", 55: "G-E-6", 56: "G-E-5",
+  57: "G-D-6", 58: "G-D-5", 59: "G-F-5", 60: "G-F-6", 61: "G-I-6", 62: "G-I-5", 63: "G-G-6", 64: "G-G-5",
+  65: "G-H-6", 66: "G-H-5", 67: "G-L-5", 68: "G-L-6", 69: "G-J-6", 70: "G-J-5", 71: "G-K-5", 72: "G-K-6",
+  73: "M3", 74: "M9", 75: "M1", 76: "M4", 77: "M10", 78: "M2", 79: "M11", 80: "M12",
+  81: "M8", 82: "M7", 83: "M6", 84: "M5", 85: "M15", 86: "M14", 87: "M13", 88: "M16",
+  89: "O1", 90: "O2", 91: "O3", 92: "O4", 93: "O5", 94: "O6", 95: "O7", 96: "O8",
+  97: "Q1", 98: "Q2", 99: "Q3", 100: "Q4", 101: "S1", 102: "S2", 103: "THIRD", 104: "FINAL"
+};
+
+function appMatchIdFromExternal(value) {
+  const text = String(value || "");
+  const numeric = Number(text);
+  if (Number.isInteger(numeric) && fifaMatchIdMap[numeric]) return fifaMatchIdMap[numeric];
+  return text;
+}
+
 function stageFromApi(value) {
   const text = String(value || "").toLowerCase();
   if (text.includes("group")) return "group";
@@ -15,8 +38,8 @@ function stageFromApi(value) {
 
 function normalizeStatus(value) {
   const text = String(value || "").toLowerCase();
-  if (text.includes("finish") || text.includes("finalizado") || text === "ft") return "finished";
-  if (text.includes("live") || text.includes("playing") || text.includes("progress")) return "live";
+  if (text.includes("true") || text.includes("finish") || text.includes("finalizado") || text === "ft") return "finished";
+  if (text.includes("live") || text.includes("playing") || text.includes("progress") || text.includes("elapsed")) return "live";
   return "scheduled";
 }
 
@@ -40,15 +63,17 @@ function nullableNumber(value) {
 function normalizeGames(payload) {
   const list = Array.isArray(payload) ? payload : payload?.data || payload?.games || payload?.matches || [];
   return list.map((game, index) => {
-    const status = normalizeStatus(game.status || game.fixture?.status?.short || game.fixture?.status?.long);
+    const status = normalizeStatus(game.finished || game.status || game.time_elapsed || game.fixture?.status?.short || game.fixture?.status?.long);
     const updatedAt = nowIso();
+    const homeGoals = nullableNumber(game.home_goals ?? game.home_score ?? game.goals?.home);
+    const awayGoals = nullableNumber(game.away_goals ?? game.away_score ?? game.goals?.away);
     return {
-      match_id: String(game.match_id || game.id || game.fixture?.id || `API-${index + 1}`),
-      home_team: game.home_team || game.home?.name || game.teams?.home?.name || game.homeTeam || "Local",
-      away_team: game.away_team || game.away?.name || game.teams?.away?.name || game.awayTeam || "Visitante",
-      home_goals: nullableNumber(game.home_goals ?? game.goals?.home),
-      away_goals: nullableNumber(game.away_goals ?? game.goals?.away),
-      stage: stageFromApi(game.stage || game.round || game.phase),
+      match_id: appMatchIdFromExternal(game.match_id || game.id || game.fixture?.id || `API-${index + 1}`),
+      home_team: game.home_team || game.home_team_name_en || game.home?.name || game.teams?.home?.name || game.homeTeam || "Local",
+      away_team: game.away_team || game.away_team_name_en || game.away?.name || game.teams?.away?.name || game.awayTeam || "Visitante",
+      home_goals: status === "scheduled" ? null : homeGoals,
+      away_goals: status === "scheduled" ? null : awayGoals,
+      stage: stageFromApi(game.stage || game.round || game.phase || game.type || game.group),
       status,
       match_date: game.match_date || game.date || game.fixture?.date || null,
       last_updated: updatedAt,
@@ -61,6 +86,10 @@ function normalizeGames(payload) {
 
 function isManualAuthority(match) {
   return match?.manual_override === true || match?.locked === true;
+}
+
+function shouldPreserveTeamName(value) {
+  return value && !/^m\d+\s+(local|visitante)$/i.test(value) && !/^(local|visitante)$/i.test(value);
 }
 
 function isSchemaCacheColumnError(error) {
@@ -100,6 +129,10 @@ async function upsertGames(games) {
     }
     unlockedGames.push({
       ...game,
+      home_team: shouldPreserveTeamName(current?.home_team) ? current.home_team : game.home_team,
+      away_team: shouldPreserveTeamName(current?.away_team) ? current.away_team : game.away_team,
+      stage: current?.stage || game.stage,
+      match_date: game.match_date || current?.match_date || null,
       confirmed_at: game.status === "finished" ? current?.confirmed_at || game.confirmed_at : null
     });
   }

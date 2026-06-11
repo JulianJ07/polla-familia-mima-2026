@@ -77,6 +77,21 @@ function timeAgo(value) {
   return `hace ${Math.round(hours / 24)} dias`;
 }
 
+function formatColombiaDate(value) {
+  if (!value) return "Horario por confirmar";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Horario por confirmar";
+  return new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  }).format(date);
+}
+
 function AnimatedNumber({ value }) {
   const motionValue = useMotionValue(0);
   const rounded = useTransform(motionValue, (latest) => formatPoints(latest));
@@ -347,6 +362,10 @@ function MatchesView({ matches, stage, setStage }) {
               <span className="text-xs font-black uppercase text-mint">{match.stageLabel}</span>
               <StatusPill status={match.status} />
             </div>
+            <div className="mt-2 flex items-center gap-2 text-xs font-bold text-muted">
+              <CalendarClock size={14} />
+              <span>{formatColombiaDate(match.match_date)}</span>
+            </div>
             <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <strong className="truncate text-right text-white">{match.home_team}</strong>
               <span className="score-box">
@@ -399,6 +418,7 @@ function BracketView({ bracket }) {
                   <span className="text-xs font-black text-muted">{match.match_id}</span>
                   <CircleDot size={14} className={match.status === "live" ? "text-red-300" : "text-mint"} />
                 </div>
+                <p className="mt-2 text-xs font-bold text-muted">{formatColombiaDate(match.match_date)}</p>
                 <p className="mt-3 truncate font-bold text-white">{match.home_team}</p>
                 <p className="truncate font-bold text-white">{match.away_team}</p>
                 <div className="mt-3 text-sm font-black text-gold">

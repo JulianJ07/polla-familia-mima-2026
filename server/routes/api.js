@@ -102,6 +102,16 @@ async function countRows(table) {
   return count || 0;
 }
 
+async function fetchAll(queryBuilder, pageSize = 1000) {
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await queryBuilder.range(from, from + pageSize - 1);
+    assertNoError(error, "Leer pagina de datos");
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
+}
+
 async function currentPhase() {
   const client = requireSupabase();
   const { count: liveCount, error: liveError } = await client
@@ -204,12 +214,10 @@ export function createApiRouter(io) {
     const matchIds = (matches || []).map((match) => match.match_id);
     let predictions = [];
     if (matchIds.length) {
-      const { data, error: predictionError } = await client
+      predictions = await fetchAll(client
         .from("predictions")
         .select("match_id,predicted_home_goals,predicted_away_goals")
-        .in("match_id", matchIds);
-      assertNoError(predictionError, "Leer conteo de predicciones");
-      predictions = data || [];
+        .in("match_id", matchIds));
     }
 
     const stats = new Map();

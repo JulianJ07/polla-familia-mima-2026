@@ -147,6 +147,16 @@ Archivos generados:
 - `supabase/seed-report.md`
 - `supabase/seed-report.json`
 
+## Actualizar horarios y Samuel
+
+Para cargar los 104 horarios reales del Mundial 2026 y las predicciones de Samuel Jimenez desde la transcripcion auditada:
+
+```bash
+npm run data:update-schedule-samuel
+```
+
+El script usa `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` desde `.env`, actualiza `match_results.match_date`, reemplaza solo los datos del participante `id=2` y recalcula la tabla.
+
 ## Admin
 
 La ruta `/admin` permite:
