@@ -24,7 +24,7 @@ import {
   XCircle
 } from "lucide-react";
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { adminGet, adminPatch, adminPost, apiGet } from "./api.js";
 import stadiumImage from "./assets/stadium-night.png";
@@ -74,6 +74,14 @@ function viewFromPath(pathname) {
 
 function cx(...classes) {
   return classes.filter(Boolean).join(" ");
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function formatPoints(value) {
@@ -391,6 +399,7 @@ function ParticipantPanel({ detail }) {
   const [detailFilter, setDetailFilter] = useState("all");
   const [matchDateFilter, setMatchDateFilter] = useState("all");
   const [matchGroupFilter, setMatchGroupFilter] = useState("all");
+  const dateInputRef = useRef(null);
 
   useEffect(() => {
     setDetailFilter("all");
@@ -416,6 +425,7 @@ function ParticipantPanel({ detail }) {
   const selectedDayLabel = matchDateFilter === "all" ? "Todos los dias" : formatColombiaDay(`${matchDateFilter}T12:00:00-05:00`);
   const groupOptions = [...new Set(predictions.map(groupCodeFromMatch).filter(Boolean))].sort();
   const groupFilterAvailable = ["all", "group"].includes(detailFilter);
+  const groupFilterLabel = !groupFilterAvailable ? "No aplica para esta fase" : matchGroupFilter === "all" ? "Todos los grupos" : `Grupo ${matchGroupFilter}`;
   const stageFilteredPredictions =
     detailFilter === "all" ? predictions : activeMatchFilter ? predictions.filter((item) => item.stage === detailFilter) : [];
   const visiblePredictions = stageFilteredPredictions.filter((item) => {
@@ -436,6 +446,20 @@ function ParticipantPanel({ detail }) {
   }, {});
   const hits = predictions.filter((item) => item.verdict === "hit").length;
   const misses = predictions.filter((item) => item.verdict === "miss").length;
+
+  function openDatePicker(event) {
+    if (event.target?.closest?.("button")) return;
+    const input = dateInputRef.current;
+    if (!input) return;
+    input.focus();
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker();
+      } catch {
+        input.focus();
+      }
+    }
+  }
 
   return (
     <div className="panel participant-panel">
@@ -491,9 +515,10 @@ function ParticipantPanel({ detail }) {
           <div className="participant-match-filters">
             <label className="participant-match-filter">
               Dia
-              <span className="participant-date-input-wrap">
+              <span className="participant-date-input-wrap" onClick={openDatePicker}>
                 <CalendarDays size={16} />
                 <input
+                  ref={dateInputRef}
                   type="date"
                   value={matchDateFilter === "all" ? "" : matchDateFilter}
                   onInput={(event) => setMatchDateFilter(event.currentTarget.value || "all")}
@@ -520,6 +545,7 @@ function ParticipantPanel({ detail }) {
                   <option key={groupCode} value={groupCode}>Grupo {groupCode}</option>
                 ))}
               </select>
+              <small>{groupFilterLabel}</small>
             </label>
           </div>
           <PredictionList stageBuckets={stageBuckets} />
@@ -728,14 +754,14 @@ function MatchesView({ matches, stage, setStage }) {
     return ["all", ...options];
   }, [matches]);
   const filtered = useMemo(() => {
-    const search = query.trim().toLowerCase();
+    const search = normalizeSearchText(query);
     return matches.filter((match) => {
       const stageOk = stage === "all" || match.stage === stage;
       if (!stageOk) return false;
       const groupOk = groupFilter === "all" || groupCodeFromMatch(match) === groupFilter;
       if (!groupOk) return false;
       if (!search) return true;
-      return `${match.home_team} ${match.away_team} ${match.stageLabel} ${match.match_id}`.toLowerCase().includes(search);
+      return normalizeSearchText(`${match.home_team} ${match.away_team} ${match.stageLabel} ${match.match_id}`).includes(search);
     });
   }, [groupFilter, matches, query, stage]);
 
@@ -876,9 +902,9 @@ function MatchDetailModal({ detail, busy, onClose }) {
   const match = detail?.match;
   const finished = match?.status === "finished" && match.home_goals != null && match.away_goals != null;
   const matchRows = detail?.rows || [];
-  const participantSearchText = participantSearch.trim().toLowerCase();
+  const participantSearchText = normalizeSearchText(participantSearch);
   const visibleRows = participantSearchText
-    ? matchRows.filter((row) => row.name.toLowerCase().includes(participantSearchText))
+    ? matchRows.filter((row) => normalizeSearchText(row.name).includes(participantSearchText))
     : matchRows;
 
   useEffect(() => {
@@ -1087,9 +1113,9 @@ function AwardsView({ awards }) {
   const [participantQuery, setParticipantQuery] = useState("");
   const leaderGoals = Math.max(1, ...((awards.topScorers || []).map((item) => item.goals)));
   const filteredPredictions = useMemo(() => {
-    const search = participantQuery.trim().toLowerCase();
+    const search = normalizeSearchText(participantQuery);
     if (!search) return awards.predictions || [];
-    return (awards.predictions || []).filter((item) => item.name.toLowerCase().includes(search));
+    return (awards.predictions || []).filter((item) => normalizeSearchText(item.name).includes(search));
   }, [awards.predictions, participantQuery]);
 
   return (
@@ -1629,10 +1655,10 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
   }, [adminMatches]);
 
   const filteredAdminMatches = useMemo(() => {
-    const search = adminSearch.trim().toLowerCase();
+    const search = normalizeSearchText(adminSearch);
     return adminMatches.filter((match) => {
       const groupCode = matchGroup(match);
-      const text = `${match.match_id} ${match.home_team} ${match.away_team} ${match.stageLabel}`.toLowerCase();
+      const text = normalizeSearchText(`${match.match_id} ${match.home_team} ${match.away_team} ${match.stageLabel}`);
       const stageOk = adminStageFilter === "all" || match.stage === adminStageFilter;
       const groupOk = adminGroupFilter === "all" || groupCode === adminGroupFilter;
       const dateOk = !adminDateFilter || dateOnlyColombia(match.match_date) === adminDateFilter;

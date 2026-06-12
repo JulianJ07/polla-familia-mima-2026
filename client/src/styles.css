@@ -835,12 +835,14 @@ main.pt-16 > section.relative h2.font-display {
 .participant-match-filters {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
+  align-items: start;
   gap: 10px;
   margin-bottom: 12px;
 }
 
 .participant-match-filter {
   display: grid;
+  grid-template-rows: auto 38px 14px;
   gap: 6px;
   color: var(--muted);
   font-size: 11px;
@@ -870,6 +872,7 @@ main.pt-16 > section.relative h2.font-display {
   padding: 0 8px 0 10px;
   color: var(--muted);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  cursor: pointer;
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
@@ -891,6 +894,7 @@ main.pt-16 > section.relative h2.font-display {
   font-weight: 850;
   outline: none;
   color-scheme: dark;
+  cursor: pointer;
 }
 
 .participant-date-input-wrap input::-webkit-calendar-picker-indicator {
@@ -2353,6 +2357,19 @@ main.pt-16 > section.relative h2.font-display {
   .player-avatar {
     width: 34px;
     height: 34px;
+  }
+
+  .participant-match-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .participant-date-input-wrap,
+  .participant-match-filter select {
+    min-height: 44px;
+  }
+
+  .participant-match-filter {
+    grid-template-rows: auto 44px 14px;
   }
 
   .match-grid,
