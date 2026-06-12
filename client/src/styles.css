@@ -44,6 +44,24 @@ select {
   font: inherit;
 }
 
+select,
+select option,
+select optgroup {
+  color-scheme: dark;
+  background-color: #101827 !important;
+  color: var(--ball-white) !important;
+}
+
+select option {
+  border: 0;
+  padding: 8px 10px;
+}
+
+select option:checked {
+  background: #20314a !important;
+  color: var(--trophy-gold) !important;
+}
+
 button {
   cursor: pointer;
 }
@@ -489,25 +507,41 @@ main.pt-16 > section.relative h2.font-display {
 }
 
 .leaderboard-row-selected {
+  z-index: 1;
+  border-radius: 8px;
   background:
-    linear-gradient(90deg, rgb(0 184 107 / 0.18), rgb(27 92 255 / 0.16) 45%, rgb(255 213 74 / 0.08)),
-    rgb(16 24 39 / 0.72);
+    linear-gradient(90deg, rgb(255 213 74 / 0.14), rgb(0 184 107 / 0.2) 32%, rgb(27 92 255 / 0.18) 72%, rgb(16 24 39 / 0.62)),
+    rgb(16 24 39 / 0.86);
   box-shadow:
-    inset 0 0 0 1px rgb(0 184 107 / 0.68),
-    inset 0 0 34px rgb(0 184 107 / 0.08),
-    0 10px 34px rgb(0 0 0 / 0.24);
-  transform: translateY(-1px);
+    inset 0 0 0 1px rgb(255 213 74 / 0.3),
+    inset 0 0 0 2px rgb(0 184 107 / 0.38),
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 16px 46px rgb(0 0 0 / 0.34),
+    0 0 30px rgb(0 184 107 / 0.18);
+  transform: translateY(-2px) scale(1.006);
 }
 
 .leaderboard-row-selected::before {
-  width: 5px;
+  inset: 7px auto 7px 0;
+  width: 6px;
   background: linear-gradient(180deg, var(--trophy-gold), var(--trionda-green));
-  box-shadow: 0 0 18px rgb(0 184 107 / 0.75);
+  box-shadow: 0 0 20px rgb(0 184 107 / 0.9), 0 0 10px rgb(255 213 74 / 0.55);
 }
 
 .leaderboard-row-selected .player-avatar {
-  border-color: rgb(255 213 74 / 0.5);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 0 0 3px rgb(0 184 107 / 0.16);
+  border-color: rgb(255 213 74 / 0.62);
+  background: linear-gradient(135deg, rgb(255 213 74 / 0.34), rgb(27 92 255 / 0.48), rgb(0 184 107 / 0.34));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 0 0 3px rgb(0 184 107 / 0.18),
+    0 10px 24px rgb(0 0 0 / 0.25);
+}
+
+.leaderboard-row-selected:hover {
+  background:
+    linear-gradient(90deg, rgb(255 213 74 / 0.18), rgb(0 184 107 / 0.24) 32%, rgb(27 92 255 / 0.2) 72%, rgb(16 24 39 / 0.66)),
+    rgb(16 24 39 / 0.9);
+  transform: translateY(-2px) scale(1.006);
 }
 
 .leaderboard-metric {
@@ -554,6 +588,44 @@ main.pt-16 > section.relative h2.font-display {
 
 .rank-bronze::before {
   background: #d99a4e;
+}
+
+.leaderboard-row.leaderboard-row-selected {
+  z-index: 1;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgb(255 213 74 / 0.14), rgb(0 184 107 / 0.2) 32%, rgb(27 92 255 / 0.18) 72%, rgb(16 24 39 / 0.62)),
+    rgb(16 24 39 / 0.86);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 213 74 / 0.3),
+    inset 0 0 0 2px rgb(0 184 107 / 0.38),
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 16px 46px rgb(0 0 0 / 0.34),
+    0 0 30px rgb(0 184 107 / 0.18);
+  transform: translateY(-2px) scale(1.006);
+}
+
+.leaderboard-row.leaderboard-row-selected::before {
+  inset: 7px auto 7px 0;
+  width: 6px;
+  background: linear-gradient(180deg, var(--trophy-gold), var(--trionda-green));
+  box-shadow: 0 0 20px rgb(0 184 107 / 0.9), 0 0 10px rgb(255 213 74 / 0.55);
+}
+
+.leaderboard-row.leaderboard-row-selected .player-avatar {
+  border-color: rgb(255 213 74 / 0.62);
+  background: linear-gradient(135deg, rgb(255 213 74 / 0.34), rgb(27 92 255 / 0.48), rgb(0 184 107 / 0.34));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 0 0 3px rgb(0 184 107 / 0.18),
+    0 10px 24px rgb(0 0 0 / 0.25);
+}
+
+.leaderboard-row.leaderboard-row-selected:hover {
+  background:
+    linear-gradient(90deg, rgb(255 213 74 / 0.18), rgb(0 184 107 / 0.24) 32%, rgb(27 92 255 / 0.2) 72%, rgb(16 24 39 / 0.66)),
+    rgb(16 24 39 / 0.9);
+  transform: translateY(-2px) scale(1.006);
 }
 
 .player-avatar {
@@ -781,12 +853,28 @@ main.pt-16 > section.relative h2.font-display {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(255 255 255 / 0.065);
+  color-scheme: dark;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.075), rgb(27 92 255 / 0.08)),
+    #172234;
   padding: 0 10px;
   color: white;
   font-size: 13px;
   font-weight: 850;
   outline: none;
+}
+
+.participant-match-filter select:hover,
+.participant-match-filter select:focus {
+  border-color: rgb(255 213 74 / 0.34);
+  background:
+    linear-gradient(135deg, rgb(255 213 74 / 0.1), rgb(0 184 107 / 0.08)),
+    #172234;
+}
+
+.participant-match-filter option {
+  background-color: #101827 !important;
+  color: var(--ball-white) !important;
 }
 
 .participant-match-filter select:disabled {
@@ -1720,8 +1808,8 @@ main.pt-16 > section.relative h2.font-display {
 }
 
 .text-input option {
-  background: var(--panel);
-  color: white;
+  background-color: #101827 !important;
+  color: var(--ball-white) !important;
 }
 
 .date-input-wrap {
