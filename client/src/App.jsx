@@ -869,8 +869,18 @@ function MatchStatusIcon({ status }) {
 }
 
 function MatchDetailModal({ detail, busy, onClose }) {
+  const [participantSearch, setParticipantSearch] = useState("");
   const match = detail?.match;
   const finished = match?.status === "finished" && match.home_goals != null && match.away_goals != null;
+  const matchRows = detail?.rows || [];
+  const participantSearchText = participantSearch.trim().toLowerCase();
+  const visibleRows = participantSearchText
+    ? matchRows.filter((row) => row.name.toLowerCase().includes(participantSearchText))
+    : matchRows;
+
+  useEffect(() => {
+    setParticipantSearch("");
+  }, [match?.match_id]);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -902,6 +912,18 @@ function MatchDetailModal({ detail, busy, onClose }) {
           <small>{match?.match_id || ""}</small>
         </div>
 
+        <div className="match-detail-tools">
+          <label className="match-detail-search">
+            <Search size={16} />
+            <input
+              value={participantSearch}
+              onChange={(event) => setParticipantSearch(event.target.value)}
+              placeholder="Buscar participante"
+            />
+          </label>
+          <span>{busy ? "cargando" : `${visibleRows.length}/${matchRows.length} visibles`}</span>
+        </div>
+
         {detail?.error && (
           <div className="rounded-md border border-red-300/20 bg-red-400/10 p-3 text-sm font-bold text-red-100">
             {detail.error}
@@ -919,7 +941,7 @@ function MatchDetailModal({ detail, busy, onClose }) {
             {busy && (
               <div className="match-detail-empty">Cargando pronosticos...</div>
             )}
-            {!busy && (detail?.rows || []).map((row) => (
+            {!busy && visibleRows.map((row) => (
               <div key={row.participantId} className={cx("match-detail-row", `match-prediction-${row.status}`)}>
                 <span className="truncate font-extrabold text-white">{row.name}</span>
                 <span className="min-w-0">
@@ -939,8 +961,10 @@ function MatchDetailModal({ detail, busy, onClose }) {
                 <span className="font-display text-2xl text-gold">{formatPoints(row.points)}</span>
               </div>
             ))}
-            {!busy && !detail?.rows?.length && (
-              <div className="match-detail-empty">No hay datos de pronosticos para este partido.</div>
+            {!busy && !visibleRows.length && (
+              <div className="match-detail-empty">
+                {participantSearchText ? "No hay participantes que coincidan con la busqueda." : "No hay datos de pronosticos para este partido."}
+              </div>
             )}
           </div>
         </div>
