@@ -413,14 +413,7 @@ function ParticipantPanel({ detail }) {
 
   const predictions = detail.predictions || [];
   const activeMatchFilter = ["all", "group", "r32", "r16", "qf", "sf", "third", "final"].includes(detailFilter);
-  const dateOptions = [...new Map(
-    predictions
-      .map((item) => {
-        const value = dateOnlyColombia(item.match_date);
-        return value ? [value, formatColombiaDay(item.match_date)] : null;
-      })
-      .filter(Boolean)
-  ).entries()].sort(([a], [b]) => a.localeCompare(b));
+  const selectedDayLabel = matchDateFilter === "all" ? "Todos los dias" : formatColombiaDay(`${matchDateFilter}T12:00:00-05:00`);
   const groupOptions = [...new Set(predictions.map(groupCodeFromMatch).filter(Boolean))].sort();
   const groupFilterAvailable = ["all", "group"].includes(detailFilter);
   const stageFilteredPredictions =
@@ -498,12 +491,22 @@ function ParticipantPanel({ detail }) {
           <div className="participant-match-filters">
             <label className="participant-match-filter">
               Dia
-              <select value={matchDateFilter} onChange={(event) => setMatchDateFilter(event.target.value)}>
-                <option value="all">Todos los dias</option>
-                {dateOptions.map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
+              <span className="participant-date-input-wrap">
+                <CalendarDays size={16} />
+                <input
+                  type="date"
+                  value={matchDateFilter === "all" ? "" : matchDateFilter}
+                  onInput={(event) => setMatchDateFilter(event.currentTarget.value || "all")}
+                  onChange={(event) => setMatchDateFilter(event.target.value || "all")}
+                  aria-label="Filtrar por dia"
+                />
+                {matchDateFilter !== "all" && (
+                  <button type="button" onClick={() => setMatchDateFilter("all")} aria-label="Limpiar dia">
+                    <XCircle size={15} />
+                  </button>
+                )}
+              </span>
+              <small>{selectedDayLabel}</small>
             </label>
             <label className="participant-match-filter">
               Grupo
