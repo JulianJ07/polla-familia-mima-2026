@@ -108,6 +108,18 @@ function formatColombiaDate(value) {
   }).format(date);
 }
 
+function formatColombiaDay(value) {
+  if (!value) return "Sin fecha";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+  return new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    weekday: "short",
+    day: "2-digit",
+    month: "short"
+  }).format(date);
+}
+
 function formatColombiaDateTime(value) {
   if (!value) return "Sin fecha";
   const date = new Date(value);
@@ -284,6 +296,7 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
                   <motion.button
                     key={row.id}
                     type="button"
+                    aria-pressed={selectedParticipant === row.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.24, delay: Math.min(index, 8) * 0.025 }}
@@ -376,6 +389,18 @@ function CategoryPodium({ leaderboard }) {
 
 function ParticipantPanel({ detail }) {
   const [detailFilter, setDetailFilter] = useState("all");
+  const [matchDateFilter, setMatchDateFilter] = useState("all");
+  const [matchGroupFilter, setMatchGroupFilter] = useState("all");
+
+  useEffect(() => {
+    setDetailFilter("all");
+    setMatchDateFilter("all");
+    setMatchGroupFilter("all");
+  }, [detail?.participant?.id]);
+
+  useEffect(() => {
+    if (!["all", "group"].includes(detailFilter)) setMatchGroupFilter("all");
+  }, [detailFilter]);
 
   if (!detail) {
     return (
@@ -388,8 +413,23 @@ function ParticipantPanel({ detail }) {
 
   const predictions = detail.predictions || [];
   const activeMatchFilter = ["all", "group", "r32", "r16", "qf", "sf", "third", "final"].includes(detailFilter);
-  const visiblePredictions =
+  const dateOptions = [...new Map(
+    predictions
+      .map((item) => {
+        const value = dateOnlyColombia(item.match_date);
+        return value ? [value, formatColombiaDay(item.match_date)] : null;
+      })
+      .filter(Boolean)
+  ).entries()].sort(([a], [b]) => a.localeCompare(b));
+  const groupOptions = [...new Set(predictions.map(groupCodeFromMatch).filter(Boolean))].sort();
+  const groupFilterAvailable = ["all", "group"].includes(detailFilter);
+  const stageFilteredPredictions =
     detailFilter === "all" ? predictions : activeMatchFilter ? predictions.filter((item) => item.stage === detailFilter) : [];
+  const visiblePredictions = stageFilteredPredictions.filter((item) => {
+    const dateOk = matchDateFilter === "all" || dateOnlyColombia(item.match_date) === matchDateFilter;
+    const groupOk = matchGroupFilter === "all" || (item.stage === "group" && groupCodeFromMatch(item) === matchGroupFilter);
+    return dateOk && groupOk;
+  });
   const groups = (detail.groups || []).reduce((acc, row) => {
     acc[row.group_code] ||= [];
     acc[row.group_code].push(row);
@@ -453,7 +493,31 @@ function ParticipantPanel({ detail }) {
         <div className="prediction-section">
           <div className="prediction-section-title">
             <h4>Partidos</h4>
-            <span>{detailFilter === "all" ? "todos los marcadores" : "filtro activo"}</span>
+            <span>{visiblePredictions.length} marcadores</span>
+          </div>
+          <div className="participant-match-filters">
+            <label className="participant-match-filter">
+              Dia
+              <select value={matchDateFilter} onChange={(event) => setMatchDateFilter(event.target.value)}>
+                <option value="all">Todos los dias</option>
+                {dateOptions.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="participant-match-filter">
+              Grupo
+              <select
+                value={matchGroupFilter}
+                onChange={(event) => setMatchGroupFilter(event.target.value)}
+                disabled={!groupFilterAvailable}
+              >
+                <option value="all">{groupFilterAvailable ? "Todos los grupos" : "No aplica"}</option>
+                {groupOptions.map((groupCode) => (
+                  <option key={groupCode} value={groupCode}>Grupo {groupCode}</option>
+                ))}
+              </select>
+            </label>
           </div>
           <PredictionList stageBuckets={stageBuckets} />
         </div>
@@ -888,16 +952,16 @@ function MatchDetailModal({ detail, busy, onClose }) {
 function BracketMatchCard({ match, compact = false }) {
   return (
     <article className={cx("bracket-match", compact && "bracket-match-center", `match-${match?.status || "scheduled"}`)}>
-      <div className="flex items-center justify-between gap-2">
+      <div className="bracket-match-top">
         <span className="text-xs font-black text-muted">{match?.match_id || "Pendiente"}</span>
         <CircleDot size={14} className={match?.status === "finished" ? "text-mint" : "text-gold"} />
       </div>
-      <p className="mt-2 truncate text-xs font-bold text-muted">{formatColombiaDate(match?.match_date)}</p>
-      <div className="mt-3 space-y-1">
-        <p className="truncate font-bold text-white">{match?.home_team || "Local"}</p>
-        <p className="truncate font-bold text-white">{match?.away_team || "Visitante"}</p>
+      <p className="bracket-date">{formatColombiaDate(match?.match_date)}</p>
+      <div className="bracket-team-list">
+        <p className="bracket-team">{match?.home_team || "Local"}</p>
+        <p className="bracket-team">{match?.away_team || "Visitante"}</p>
       </div>
-      <div className="mt-3 text-sm font-black text-gold">
+      <div className="bracket-score">
         {match?.home_goals == null ? "Pendiente" : `${match.home_goals}-${match.away_goals}`}
       </div>
     </article>
@@ -920,15 +984,15 @@ function BracketColumn({ label, matches, side, stage }) {
 }
 
 function BracketView({ bracket }) {
-  const [zoom, setZoom] = useState(0.72);
+  const [zoom, setZoom] = useState(0.76);
   const r32 = bracket.r32 || [];
   const r16 = bracket.r16 || [];
   const qf = bracket.qf || [];
   const sf = bracket.sf || [];
   const finalMatch = bracket.final?.[0];
   const thirdMatch = bracket.third?.[0];
-  const width = 1880;
-  const height = 1240;
+  const width = 2200;
+  const height = 1420;
 
   const columns = [
     { label: "16avos", matches: r32.slice(0, 8), side: "left", stage: "r32" },

@@ -489,7 +489,25 @@ main.pt-16 > section.relative h2.font-display {
 }
 
 .leaderboard-row-selected {
-  box-shadow: inset 0 0 0 1px rgb(0 184 107 / 0.5);
+  background:
+    linear-gradient(90deg, rgb(0 184 107 / 0.18), rgb(27 92 255 / 0.16) 45%, rgb(255 213 74 / 0.08)),
+    rgb(16 24 39 / 0.72);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 184 107 / 0.68),
+    inset 0 0 34px rgb(0 184 107 / 0.08),
+    0 10px 34px rgb(0 0 0 / 0.24);
+  transform: translateY(-1px);
+}
+
+.leaderboard-row-selected::before {
+  width: 5px;
+  background: linear-gradient(180deg, var(--trophy-gold), var(--trionda-green));
+  box-shadow: 0 0 18px rgb(0 184 107 / 0.75);
+}
+
+.leaderboard-row-selected .player-avatar {
+  border-color: rgb(255 213 74 / 0.5);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 0 0 3px rgb(0 184 107 / 0.16);
 }
 
 .leaderboard-metric {
@@ -740,6 +758,39 @@ main.pt-16 > section.relative h2.font-display {
   border-color: rgb(255 213 74 / 0.48);
   background: rgb(255 213 74 / 0.12);
   color: var(--trophy-gold);
+}
+
+.participant-match-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.participant-match-filter {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.participant-match-filter select {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.065);
+  padding: 0 10px;
+  color: white;
+  font-size: 13px;
+  font-weight: 850;
+  outline: none;
+}
+
+.participant-match-filter select:disabled {
+  opacity: 0.55;
 }
 
 .group-prediction-grid {
@@ -1093,7 +1144,8 @@ main.pt-16 > section.relative h2.font-display {
 }
 
 .match-detail-modal {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   width: min(920px, 100%);
   max-height: min(86svh, 760px);
   gap: 14px;
@@ -1139,6 +1191,7 @@ main.pt-16 > section.relative h2.font-display {
 }
 
 .match-detail-table-wrap {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   border: 1px solid var(--line);
@@ -1258,6 +1311,7 @@ main.pt-16 > section.relative h2.font-display {
 
 .bracket-viewport {
   max-width: 1420px;
+  height: min(78svh, 980px);
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-x pan-y pinch-zoom;
@@ -1277,16 +1331,16 @@ main.pt-16 > section.relative h2.font-display {
 
 .tournament-bracket {
   display: grid;
-  grid-template-columns: 170px 188px 188px 170px 230px 170px 188px 188px 170px;
-  gap: 22px;
-  padding: 18px;
+  grid-template-columns: 205px 220px 220px 190px 260px 190px 220px 220px 205px;
+  gap: 26px;
+  padding: 24px;
   transform-origin: top left;
 }
 
 .tournament-column {
   display: grid;
   min-width: 0;
-  min-height: 1200px;
+  min-height: 1380px;
   grid-template-rows: 34px 1fr;
 }
 
@@ -1308,24 +1362,24 @@ main.pt-16 > section.relative h2.font-display {
   position: relative;
   display: grid;
   align-content: space-around;
-  gap: 8px;
-  padding-block: 8px;
+  gap: 12px;
+  padding-block: 10px;
 }
 
 .tournament-r32 .tournament-slots {
-  grid-template-rows: repeat(8, 132px);
+  grid-template-rows: repeat(8, 150px);
 }
 
 .tournament-r16 .tournament-slots {
-  grid-template-rows: repeat(4, 204px);
+  grid-template-rows: repeat(4, 236px);
 }
 
 .tournament-qf .tournament-slots {
-  grid-template-rows: repeat(2, 356px);
+  grid-template-rows: repeat(2, 430px);
 }
 
 .tournament-sf .tournament-slots {
-  grid-template-rows: 520px;
+  grid-template-rows: 650px;
 }
 
 .bracket-slot {
@@ -1358,16 +1412,55 @@ main.pt-16 > section.relative h2.font-display {
   display: grid;
   height: 100%;
   min-height: 0;
-  align-content: start;
-  padding: 9px;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 8px;
+  align-content: stretch;
+  padding: 11px;
+}
+
+.bracket-match-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bracket-date {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.bracket-team-list {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 0;
+}
+
+.bracket-team {
+  overflow: hidden;
+  color: white;
+  font-weight: 850;
+  line-height: 1.18;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-score {
+  color: var(--trophy-gold);
+  font-size: 13px;
+  font-weight: 950;
 }
 
 .tournament-r32 .bracket-match {
-  padding: 8px;
+  padding: 10px;
 }
 
-.tournament-r32 .bracket-match p {
-  line-height: 1.15;
+.tournament-r32 .bracket-date {
+  font-size: 11px;
+  white-space: normal;
 }
 
 .bracket-match-center {
@@ -1376,7 +1469,7 @@ main.pt-16 > section.relative h2.font-display {
 
 .tournament-center {
   display: grid;
-  min-height: 1200px;
+  min-height: 1380px;
   grid-template-rows: 34px 1fr;
 }
 
@@ -1462,8 +1555,16 @@ main.pt-16 > section.relative h2.font-display {
   line-height: 1.1;
 }
 
-.participant-tournament .bracket-match > p:nth-of-type(1) {
+.participant-tournament .bracket-date {
   display: none;
+}
+
+.participant-tournament .bracket-match {
+  gap: 5px;
+}
+
+.participant-tournament .bracket-score {
+  font-size: 11px;
 }
 
 .participant-tournament .final-pedestal {
