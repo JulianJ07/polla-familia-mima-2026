@@ -55,6 +55,7 @@ const participantFilters = [
 const navItems = [
   { id: "table", label: "Tabla", icon: Table2 },
   { id: "matches", label: "Partidos", icon: Swords },
+  { id: "groups", label: "Grupos", icon: BarChart3 },
   { id: "bracket", label: "Llaves", icon: Shield },
   { id: "awards", label: "Goleadores", icon: Goal }
 ];
@@ -62,6 +63,7 @@ const navItems = [
 const viewPaths = {
   table: "/",
   matches: "/partidos",
+  groups: "/grupos",
   bracket: "/llaves",
   awards: "/goleadores",
   admin: "/admin"
@@ -82,6 +84,21 @@ function normalizeSearchText(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+const TEAM_FLAG_CODES = {
+  mexico: "MX", sudafrica: "ZA", corea: "KR", chequia: "CZ", canada: "CA", bosnia: "BA", catar: "QA", suiza: "CH",
+  brasil: "BR", marruecos: "MA", haiti: "HT", escocia: "GB", usa: "US", paraguay: "PY", australia: "AU", turquia: "TR",
+  alemania: "DE", curazao: "CW", "costa marfil": "CI", ecuador: "EC", holanda: "NL", japon: "JP", suecia: "SE", tunez: "TN",
+  belgica: "BE", egipto: "EG", iran: "IR", "n zelanda": "NZ", espana: "ES", "cabo verde": "CV", "a saudita": "SA", uruguay: "UY",
+  francia: "FR", senegal: "SN", irak: "IQ", noruega: "NO", argentina: "AR", argelia: "DZ", austria: "AT", jordania: "JO",
+  portugal: "PT", "rd congo": "CD", uzbekistan: "UZ", colombia: "CO", inglaterra: "GB", croacia: "HR", ghana: "GH", panama: "PA"
+};
+
+function teamFlag(team) {
+  const code = TEAM_FLAG_CODES[normalizeSearchText(team)];
+  if (!code) return "";
+  return [...code].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join("");
 }
 
 function formatPoints(value) {
@@ -393,6 +410,11 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
                     <span className="leaderboard-metric leaderboard-stat-col">
                       <strong>{row.matchesPlayed || 0}</strong>
                       <small>jugados</small>
+                    </span>
+                    <span className="leaderboard-mobile-stats">
+                      <span><strong>{row.exactHits || 0}</strong> exactos</span>
+                      <span><strong>{row.partialHits || 0}</strong> parciales</span>
+                      <span><strong>{row.matchesPlayed || 0}</strong> jugados</span>
                     </span>
                   </motion.button>
                 ))}
@@ -837,7 +859,7 @@ function MatchCard({ match, index, clockNow, onSelect }) {
   );
 }
 
-function MatchesView({ matches, stage, setStage }) {
+function MatchesView({ matches, stage, setStage, openMatchId, onOpenMatchHandled }) {
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [selectedMatchId, setSelectedMatchId] = useState(null);
@@ -872,6 +894,12 @@ function MatchesView({ matches, stage, setStage }) {
   useEffect(() => {
     if (stage !== "group") setGroupFilter("all");
   }, [stage]);
+
+  useEffect(() => {
+    if (!openMatchId) return;
+    setSelectedMatchId(openMatchId);
+    onOpenMatchHandled?.();
+  }, [onOpenMatchHandled, openMatchId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1200,6 +1228,157 @@ function BracketView({ bracket }) {
   );
 }
 
+function StandingsView({ standings, onOpenMatch }) {
+  const groups = standings.groups || [];
+  const thirds = standings.bestThirds?.rows || [];
+  const definitive = standings.status === "definitive";
+  const [selectedGroupCode, setSelectedGroupCode] = useState(null);
+
+  useEffect(() => {
+    if (selectedGroupCode && groups.some((group) => group.groupCode === selectedGroupCode)) return;
+    setSelectedGroupCode(standings.defaultGroupCode || groups[0]?.groupCode || "A");
+  }, [groups, selectedGroupCode, standings.defaultGroupCode]);
+
+  const selectedGroup = groups.find((group) => group.groupCode === selectedGroupCode) || groups[0];
+  const syncLimited = standings.sync?.limited;
+
+  if (!selectedGroup) {
+    return (
+      <section className="page-section standings-page">
+        <div className="panel empty-standings">Las tablas de grupos estaran disponibles cuando se carguen los partidos.</div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="page-section standings-page">
+      <div className="section-heading standings-heading">
+        <div>
+          <p className="eyebrow">Tabla de posiciones</p>
+          <h2 className="page-title">Asi van los grupos</h2>
+          <p className="standings-summary">
+            {standings.finishedMatches || 0} de {standings.totalMatches || 72} partidos finalizados.
+            {!definitive && " Los marcadores en vivo generan posiciones provisionales; la polla solo puntua resultados finales."}
+          </p>
+          <p className="standings-updated">Actualizado {timeAgo(standings.lastUpdated || standings.at)}</p>
+        </div>
+        <div className="standings-heading-status">
+          <span className={cx("standings-status", definitive && "standings-status-final")}>
+            {definitive ? "Definitivo" : "Provisional"}
+          </span>
+          {syncLimited && <span className="standings-status standings-status-limited">Cuota limitada</span>}
+        </div>
+      </div>
+
+      <div className="group-selector-shell">
+        <label className="group-selector-mobile">
+          <span>Consultar grupo</span>
+          <select value={selectedGroup.groupCode} onChange={(event) => setSelectedGroupCode(event.target.value)}>
+            {groups.map((group) => <option key={group.groupCode} value={group.groupCode}>Grupo {group.groupCode}</option>)}
+          </select>
+        </label>
+        <div className="group-selector-tabs" aria-label="Seleccionar grupo">
+          {groups.map((group) => (
+            <button
+              className={cx("group-selector-button", selectedGroup.groupCode === group.groupCode && "group-selector-button-active")}
+              type="button"
+              key={group.groupCode}
+              onClick={() => setSelectedGroupCode(group.groupCode)}
+            >
+              {group.groupCode}
+              {group.liveMatches > 0 && <span className="group-live-dot" />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <article className="panel group-card selected-group-card">
+        <header className="group-card-heading">
+          <div>
+            <p className="eyebrow">Grupo {selectedGroup.groupCode}</p>
+            <h3 className="section-title">Posiciones</h3>
+            {selectedGroup.liveMatches > 0 && <span className="group-live-label">En vivo · posiciones provisionales</span>}
+          </div>
+          <span className={cx("group-progress", selectedGroup.ready && "group-progress-final")}>
+            {selectedGroup.finishedMatches}/{selectedGroup.totalMatches}
+          </span>
+        </header>
+        <div className="group-table" role="table" aria-label={`Posiciones del grupo ${selectedGroup.groupCode}`}>
+          <div className="group-table-row group-table-header" role="row">
+            <span>Pos</span><span>Seleccion</span><span>PJ</span><span>PG</span><span>PE</span><span>PP</span>
+            <span>GF</span><span>GC</span><span>DG</span><span>Pts</span>
+          </div>
+          {(selectedGroup.rows || []).map((row) => (
+            <div className={cx("group-table-row", `qualification-${row.qualification || "out"}`)} role="row" key={`${selectedGroup.groupCode}-${row.team}`}>
+              <span className="group-position" data-label="Posicion">#{row.position}{row.tied ? "=" : ""}</span>
+              <strong className="group-team" data-label="Seleccion"><span className="team-flag">{teamFlag(row.team)}</span>{row.team}</strong>
+              <span data-label="PJ">{row.played}</span>
+              <span data-label="PG">{row.wins}</span>
+              <span data-label="PE">{row.draws}</span>
+              <span data-label="PP">{row.losses}</span>
+              <span data-label="GF">{row.gf}</span>
+              <span data-label="GC">{row.ga}</span>
+              <span data-label="DG">{row.gd > 0 ? `+${row.gd}` : row.gd}</span>
+              <strong className="group-points" data-label="Pts">{row.points}</strong>
+              {row.status === "unresolved" && <small className="group-tie-note">Empate por resolver manualmente</small>}
+            </div>
+          ))}
+        </div>
+
+        <div className="qualification-legend">
+          <span><i className="legend-direct" /> Clasifica directamente</span>
+          <span><i className="legend-third" /> En zona de mejores terceros</span>
+          <span><i className="legend-out" /> Fuera de clasificacion provisional</span>
+        </div>
+
+        <div className="group-matches-section">
+          <div className="group-matches-heading">
+            <h4>Partidos del grupo</h4>
+            <span>{selectedGroup.matches?.length || 0} partidos</span>
+          </div>
+          <div className="group-matches-list">
+            {(selectedGroup.matches || []).map((match) => (
+              <button className={cx("group-match-row", match.live && "group-match-live", match.special && "group-match-special")} type="button" key={match.matchId} onClick={() => onOpenMatch?.(match.matchId)}>
+                <span className="group-match-teams">{teamFlag(match.homeTeam)} {match.homeTeam} <b>vs</b> {match.awayTeam} {teamFlag(match.awayTeam)}</span>
+                <span className="group-match-date">{formatColombiaDate(match.matchDate)}</span>
+                <strong className="group-match-score">{match.homeGoals == null ? "-" : match.homeGoals} : {match.awayGoals == null ? "-" : match.awayGoals}</strong>
+                <span className="group-match-state">{match.live ? `En vivo ${match.elapsed || ""}'` : match.special ? match.apiStatus : match.status === "finished" ? "Finalizado" : "Programado"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </article>
+
+      <article className="panel thirds-panel">
+        <div className="thirds-heading">
+          <div><p className="eyebrow">Clasificacion</p><h3 className="section-title">Mejores terceros</h3></div>
+          <span className="standings-status">{standings.bestThirds?.status === "definitive" ? "Definitivo" : "Provisional"}</span>
+        </div>
+        {standings.bestThirds?.tiebreakNote && <p className="standings-warning">{standings.bestThirds.tiebreakNote}</p>}
+        <div className="thirds-table" role="table" aria-label="Tabla de mejores terceros">
+          <div className="thirds-row thirds-header" role="row">
+            <span>Pos</span><span>Seleccion</span><span>Grupo</span><span>Pts</span><span>DG</span><span>GF</span><span>Estado</span>
+          </div>
+          {thirds.map((row) => {
+            const inZone = row.inQualificationZone || row.classified === true;
+            return (
+              <div className={cx("thirds-row", inZone && "thirds-row-in-zone")} role="row" key={`${row.groupCode}-${row.team}`}>
+                <strong data-label="Pos">#{row.rank}{row.tied ? "=" : ""}</strong>
+                <strong className="group-team" data-label="Seleccion"><span className="team-flag">{teamFlag(row.team)}</span>{row.team}</strong>
+                <span data-label="Grupo">{row.groupCode}</span><span data-label="Pts">{row.points}</span>
+                <span data-label="DG">{row.gd > 0 ? `+${row.gd}` : row.gd}</span><span data-label="GF">{row.gf}</span>
+                <span className={cx("third-status", inZone && "third-status-in", !inZone && "third-status-out")} data-label="Estado">
+                  {row.status === "unresolved" ? "Por resolver" : inZone ? "En zona" : "Fuera de zona"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </article>
+    </section>
+  );
+}
+
 function AwardsView({ awards }) {
   const [participantQuery, setParticipantQuery] = useState("");
   const leaderGoals = Math.max(1, ...((awards.topScorers || []).map((item) => item.goals)));
@@ -1328,6 +1507,13 @@ function GroupFinalControl({ controls, selectedGroupCode, setSelectedGroupCode, 
   const positions = [1, 2, 3, 4];
   const teams = [...new Set((group?.rows || []).map((row) => row.team).filter(Boolean))];
   const selectedTeams = form[group?.group_code] || positions.map((position) => group?.manual_rows?.find((row) => row.final_position === position)?.team_code || group?.rows?.[position - 1]?.team || "");
+  const tiebreakLabels = {
+    head_to_head_points: "puntos directos",
+    head_to_head_goal_difference: "DG directa",
+    head_to_head_goals: "GF directos",
+    overall_goal_difference: "DG general",
+    overall_goals: "GF generales"
+  };
 
   function updatePosition(index, value) {
     const next = [...selectedTeams];
@@ -1359,6 +1545,9 @@ function GroupFinalControl({ controls, selectedGroupCode, setSelectedGroupCode, 
               <p className="truncate text-xs text-muted">
                 {row.points == null ? "sin tabla calculada" : `${row.points} pts, DG ${row.gd}, GF ${row.gf}`}
               </p>
+              {row.tiebreakApplied?.length > 0 && (
+                <p className="truncate text-xs text-gold">Desempate: {row.tiebreakApplied.map((rule) => tiebreakLabels[rule] || rule).join(" · ")}</p>
+              )}
             </div>
             <span className="text-xs font-black uppercase text-mint">{group.source}</span>
           </div>
@@ -1390,7 +1579,7 @@ function BestThirdsControl({ controls, form, setForm, onSave, busy }) {
   const source = controls?.bestThirds?.source;
   const ready = controls?.bestThirds?.ready;
   const note = controls?.bestThirds?.tiebreakNote;
-  const showManualOverride = source === "needs_manual_tiebreak" || source === "manual";
+  const showManualOverride = true;
   const slots = Array.from({ length: 8 }, (_, index) => index);
 
   function updateSlot(index, value) {
@@ -1430,7 +1619,7 @@ function BestThirdsControl({ controls, form, setForm, onSave, busy }) {
       {showManualOverride && (
         <>
           <div className="admin-message admin-message-soft">
-            Usa este desempate solo si el corte de los 8 mejores terceros necesita conducta del equipo o ranking FIFA.
+            Puedes corregir manualmente los 8 terceros si el calculo automatico o el desempate oficial requiere ajuste. No se asignan puntos antes de cerrar los grupos.
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {slots.map((slot) => (
@@ -1522,6 +1711,69 @@ function AwardResultsControl({ controls, form, setForm, onSave, busy }) {
   );
 }
 
+function LiveSyncControl({ state, form, setForm, selectedMatch, syncMatchForm, setSyncMatchForm, onSaveConfig, onSaveMatch, onForce, onDiscover, onRun, busy }) {
+  const status = state?.status || {};
+  const migrationRequired = status.migrationRequired;
+  const updateList = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="panel live-sync-panel lg:col-span-2">
+      <div className="live-sync-heading">
+        <div>
+          <p className="eyebrow">API-Football</p>
+          <h3 className="section-title">Actualizacion inteligente</h3>
+        </div>
+        <span className={cx("sync-mode-pill", `sync-mode-${status.mode || "offline"}`)}>{status.mode || "sin configurar"}</span>
+      </div>
+
+      {migrationRequired && <div className="admin-warning">Modo compatible activo con respaldo ESPN. La migracion 20260622 sigue pendiente para habilitar prioridades y API-Football.</div>}
+      {status.lastError && <div className="admin-warning">{status.lastError}</div>}
+
+      <div className="sync-stat-grid">
+        <div><span>Usadas hoy</span><strong>{status.used || 0}</strong></div>
+        <div><span>Disponibles</span><strong>{status.remaining ?? 0}</strong></div>
+        <div><span>Limite</span><strong>{status.dailyLimit || 100}</strong></div>
+        <div><span>API key</span><strong>{status.configured ? "Lista" : "Falta"}</strong></div>
+      </div>
+
+      <div className="live-sync-config-grid">
+        <label className="field-label">
+          <span>Sincronizacion automatica</span>
+          <select className="text-input" value={form.enabled ? "on" : "off"} onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.value === "on" }))}>
+            <option value="off">Desactivada</option><option value="on">Activada</option>
+          </select>
+        </label>
+        <label className="field-label">Limite normal<input className="text-input" type="number" min="1" max="90" value={form.dailySoftLimit || 90} onChange={(event) => setForm((current) => ({ ...current, dailySoftLimit: Number(event.target.value) }))} /></label>
+        <label className="field-label">Reserva de emergencia<input className="text-input" type="number" min="0" max="20" value={form.emergencyReserve ?? 10} onChange={(event) => setForm((current) => ({ ...current, emergencyReserve: Number(event.target.value) }))} /></label>
+        <label className="field-label">Nombre de Colombia<input className="text-input" value={form.colombiaTeamName || ""} onChange={(event) => setForm((current) => ({ ...current, colombiaTeamName: event.target.value }))} /></label>
+        <label className="field-label live-sync-list-field">Equipos populares, separados por coma<textarea className="text-input" rows="3" value={form.popularTeamsText || ""} onChange={(event) => updateList("popularTeamsText", event.target.value)} /></label>
+        <label className="field-label live-sync-list-field">Favoritos adicionales, separados por coma<textarea className="text-input" rows="3" value={form.favoriteTeamsText || ""} onChange={(event) => updateList("favoriteTeamsText", event.target.value)} /></label>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <button className="secondary-button" type="button" onClick={onSaveConfig} disabled={busy || migrationRequired}><CheckCircle2 size={17} /> Guardar configuracion</button>
+        <button className="secondary-button" type="button" onClick={onRun} disabled={busy}><RefreshCw size={17} /> Ejecutar ciclo</button>
+        <button className="secondary-button" type="button" onClick={onDiscover} disabled={busy || migrationRequired}><Search size={17} /> Descubrir fixture IDs</button>
+      </div>
+
+      {selectedMatch && (
+        <div className="sync-match-control">
+          <div>
+            <p className="font-extrabold text-white">{selectedMatch.match_id}: {selectedMatch.home_team} vs {selectedMatch.away_team}</p>
+            <p className="text-xs font-bold text-muted">Estado API: {selectedMatch.api_status || "sin mapear"} · Ultima sync: {timeAgo(selectedMatch.last_synced_at)}</p>
+          </div>
+          <label className="field-label">Fixture ID<input className="text-input" type="number" min="1" value={syncMatchForm.apiFixtureId || ""} onChange={(event) => setSyncMatchForm((current) => ({ ...current, apiFixtureId: event.target.value }))} /></label>
+          <label className="field-label">Prioridad manual<select className="text-input" value={syncMatchForm.priorityOverride || ""} onChange={(event) => setSyncMatchForm((current) => ({ ...current, priorityOverride: event.target.value }))}><option value="">Automatica</option>{["P0", "P1", "P2", "P3"].map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="sync-featured-check"><input type="checkbox" checked={Boolean(syncMatchForm.featured)} onChange={(event) => setSyncMatchForm((current) => ({ ...current, featured: event.target.checked }))} /> Partido destacado</label>
+          <div className="flex flex-wrap gap-2">
+            <button className="secondary-button" type="button" onClick={onSaveMatch} disabled={busy || migrationRequired}>Guardar prioridad</button>
+            <button className="primary-button" type="button" onClick={onForce} disabled={busy || migrationRequired || !syncMatchForm.apiFixtureId}>Forzar sincronizacion</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminView({ password, setPassword, leaderboard, onDone }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -1530,6 +1782,9 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
   const [newPassword, setNewPassword] = useState("");
   const [adminMatches, setAdminMatches] = useState([]);
   const [scoringControls, setScoringControls] = useState(null);
+  const [liveSyncState, setLiveSyncState] = useState(null);
+  const [liveSyncForm, setLiveSyncForm] = useState({});
+  const [syncMatchForm, setSyncMatchForm] = useState({ apiFixtureId: "", priorityOverride: "", featured: false });
   const [selectedGroupCode, setSelectedGroupCode] = useState("A");
   const [groupFinalForm, setGroupFinalForm] = useState({});
   const [bestThirdsForm, setBestThirdsForm] = useState(Array.from({ length: 8 }, () => ""));
@@ -1578,8 +1833,14 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     setScoringControls(data);
   }
 
+  async function loadLiveSync() {
+    if (!password) return;
+    const data = await adminGet("/admin/live-sync", password);
+    setLiveSyncState(data);
+  }
+
   async function loadAdminData() {
-    await Promise.all([loadLogs(), loadAdminMatches(), loadScoringControls()]);
+    await Promise.all([loadLogs(), loadAdminMatches(), loadScoringControls(), loadLiveSync()]);
   }
 
   async function handleUnlock(event) {
@@ -1604,6 +1865,95 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     try {
       await adminPost("/scores/recalculate", password);
       setMessage("Tabla recalculada.");
+      await loadAdminData();
+      onDone();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function splitTeamList(value) {
+    return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+  }
+
+  async function handleSaveLiveSyncConfig() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await adminPatch("/admin/live-sync/config", password, {
+        enabled: Boolean(liveSyncForm.enabled),
+        dailySoftLimit: Number(liveSyncForm.dailySoftLimit || 90),
+        emergencyReserve: Number(liveSyncForm.emergencyReserve ?? 10),
+        colombiaTeamName: liveSyncForm.colombiaTeamName || "Colombia",
+        popularTeams: splitTeamList(liveSyncForm.popularTeamsText),
+        favoriteTeams: splitTeamList(liveSyncForm.favoriteTeamsText)
+      });
+      setMessage("Configuracion de sincronizacion guardada.");
+      await loadLiveSync();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunLiveSync() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await adminPost("/admin/sync", password);
+      setMessage(result.requests ? `${result.requests} consulta(s) ejecutadas.` : "No habia partidos pendientes de actualizacion.");
+      await loadAdminData();
+      onDone();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDiscoverFixtures() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await adminPost("/admin/live-sync/discover", password);
+      setMessage(`${result.mapped?.length || 0} fixture IDs vinculados.`);
+      await loadAdminData();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveSyncMatch() {
+    if (!selectedMatchId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await adminPatch(`/admin/live-sync/matches/${encodeURIComponent(selectedMatchId)}`, password, {
+        apiFixtureId: syncMatchForm.apiFixtureId,
+        priorityOverride: syncMatchForm.priorityOverride,
+        featured: Boolean(syncMatchForm.featured)
+      });
+      setMessage("Prioridad y mapeo del partido guardados.");
+      await loadAdminData();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleForceSync() {
+    if (!selectedMatchId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await adminPost("/admin/live-sync/force", password, { match_id: selectedMatchId });
+      setMessage(`Sincronizacion forzada: ${result.processed || 0} partido(s) procesado(s).`);
       await loadAdminData();
       onDone();
     } catch (error) {
@@ -1796,7 +2146,25 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       qualified_team: selectedMatch.qualified_team || "",
       decided_by_penalties: Boolean(selectedMatch.decided_by_penalties)
     });
+    setSyncMatchForm({
+      apiFixtureId: selectedMatch.api_fixture_id || "",
+      priorityOverride: selectedMatch.priority_override || "",
+      featured: Boolean(selectedMatch.featured)
+    });
   }, [selectedMatch]);
+
+  useEffect(() => {
+    if (!liveSyncState?.config) return;
+    const config = liveSyncState.config;
+    setLiveSyncForm({
+      enabled: Boolean(config.enabled),
+      dailySoftLimit: config.dailySoftLimit ?? 90,
+      emergencyReserve: config.emergencyReserve ?? 10,
+      colombiaTeamName: config.colombiaTeamName || "Colombia",
+      popularTeamsText: (config.popularTeams || []).join(", "),
+      favoriteTeamsText: (config.favoriteTeams || []).join(", ")
+    });
+  }, [liveSyncState]);
 
   useEffect(() => {
     if (!scoringControls) return;
@@ -1898,6 +2266,23 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
             ))}
           </div>
         </div>
+
+        {isAdminUnlocked && (
+          <LiveSyncControl
+            state={liveSyncState}
+            form={liveSyncForm}
+            setForm={setLiveSyncForm}
+            selectedMatch={selectedMatch}
+            syncMatchForm={syncMatchForm}
+            setSyncMatchForm={setSyncMatchForm}
+            onSaveConfig={handleSaveLiveSyncConfig}
+            onSaveMatch={handleSaveSyncMatch}
+            onForce={handleForceSync}
+            onDiscover={handleDiscoverFixtures}
+            onRun={handleRunLiveSync}
+            busy={busy}
+          />
+        )}
 
         {isAdminUnlocked ? (
           <form className="panel space-y-4 lg:col-span-2" onSubmit={handleSaveMatch}>
@@ -2161,9 +2546,11 @@ export default function App() {
   const [meta, setMeta] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [standings, setStandings] = useState({ groups: [], bestThirds: { rows: [] } });
   const [bracket, setBracket] = useState({});
   const [awards, setAwards] = useState({});
   const [stage, setStage] = useState("all");
+  const [openMatchId, setOpenMatchId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState(null);
   const [participantDetail, setParticipantDetail] = useState(null);
@@ -2178,19 +2565,27 @@ export default function App() {
     }
   }
 
+  function openMatchFromStandings(matchId) {
+    setStage("group");
+    setOpenMatchId(matchId);
+    navigateView("matches");
+  }
+
   async function refreshAll() {
     setRefreshing(true);
     try {
-      const [metaData, leaderboardData, matchesData, bracketData, awardsData] = await Promise.all([
+      const [metaData, leaderboardData, matchesData, standingsData, bracketData, awardsData] = await Promise.all([
         apiGet("/meta"),
         apiGet("/leaderboard"),
         apiGet("/matches?stage=all"),
+        apiGet("/standings"),
         apiGet("/bracket"),
         apiGet("/awards")
       ]);
       setMeta(metaData);
       setLeaderboard(leaderboardData.rows || []);
       setMatches(matchesData.rows || []);
+      setStandings(standingsData || { groups: [], bestThirds: { rows: [] } });
       setBracket(bracketData.stages || {});
       setAwards(awardsData || {});
       setSelectedParticipant((current) => current || leaderboardData.rows?.[0]?.id || null);
@@ -2221,7 +2616,31 @@ export default function App() {
     const socket = io(socketUrl, { path: "/socket.io" });
     socket.on("scores:updated", () => {
       setToast("Puntajes actualizados");
-      refreshAll();
+      Promise.all([
+        apiGet("/meta"),
+        apiGet("/leaderboard"),
+        apiGet("/matches?stage=all"),
+        apiGet("/standings"),
+        apiGet("/bracket")
+      ]).then(([metaData, leaderboardData, matchesData, standingsData, bracketData]) => {
+        setMeta(metaData);
+        setLeaderboard(leaderboardData.rows || []);
+        setMatches(matchesData.rows || []);
+        setStandings(standingsData || { groups: [], bestThirds: { rows: [] } });
+        setBracket(bracketData.stages || {});
+      }).catch((error) => setToast(error.message));
+    });
+    socket.on("match:updated", (event) => {
+      if (event?.row?.match_id) {
+        setMatches((current) => current.map((match) => match.match_id === event.row.match_id ? { ...match, ...event.row } : match));
+      }
+      apiGet("/standings").then(setStandings).catch((error) => setToast(error.message));
+    });
+    socket.on("live-sync:status", (status) => {
+      setStandings((current) => ({ ...current, sync: status }));
+    });
+    socket.on("awards:updated", () => {
+      apiGet("/awards").then(setAwards).catch((error) => setToast(error.message));
     });
     socket.on("goal", (event) => setToast(event.message || "Gol actualizado"));
     return () => socket.close();
@@ -2249,7 +2668,16 @@ export default function App() {
           participantDetail={participantDetail}
         />
       )}
-      {activeView === "matches" && <MatchesView matches={matches} stage={stage} setStage={setStage} />}
+      {activeView === "matches" && (
+        <MatchesView
+          matches={matches}
+          stage={stage}
+          setStage={setStage}
+          openMatchId={openMatchId}
+          onOpenMatchHandled={() => setOpenMatchId(null)}
+        />
+      )}
+      {activeView === "groups" && <StandingsView standings={standings} onOpenMatch={openMatchFromStandings} />}
       {activeView === "bracket" && <BracketView bracket={bracket} />}
       {activeView === "awards" && <AwardsView awards={awards} />}
       {activeView === "admin" && <AdminView password={password} setPassword={setPassword} leaderboard={leaderboard} onDone={refreshAll} />}
