@@ -59,6 +59,27 @@ create index if not exists idx_match_results_override_flags on match_results(man
 -- mejores terceros, premios individuales y aliases de nombres.
 ```
 
+Para la auditoria del 21 de junio, ejecuta tambien:
+
+```sql
+-- supabase/migrations/20260621_participants_and_official_results.sql
+-- agrega a Patricia Garcia y Luis Alejandro Patino sin borrar datos,
+-- carga sus pronosticos diligenciados y corrige los resultados auditados.
+```
+
+La migracion es aditiva e idempotente. Antes de desplegar puedes validarla con:
+
+```bash
+npm run check
+```
+
+Para habilitar la sincronizacion inteligente, ejecuta despues:
+
+```sql
+-- supabase/migrations/20260622_api_football_smart_sync.sql
+-- agrega cache en vivo, fixture IDs, prioridad, cuota, configuracion y auditoria.
+```
+
 ## Render
 
 Build command:
@@ -81,11 +102,16 @@ NODE_ENV=production
 ENABLE_CRON=false
 SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
+API_FOOTBALL_KEY=
+API_FOOTBALL_BASE_URL=https://v3.football.api-sports.io
+SYNC_SECRET=
 ```
 
-La app no usa sincronizacion automatica de resultados. Los resultados, clasificados, posiciones de grupo y premios se cargan desde `/admin`.
+Activa `ENABLE_CRON=true` solamente despues de ejecutar la migracion, mapear los fixture IDs y confirmar que el plan de API-Football tiene acceso a la temporada 2026.
 
-## Resultados manuales
+Despues de aplicar migraciones, sube la rama al repositorio conectado a Render. El `render.yaml` ejecuta el build y el arranque; valida `/api/health`, `/api/meta`, `/api/standings` y finalmente `/grupos`.
+
+## Resultados automaticos y manuales
 
 Fuente unica de verdad:
 
@@ -95,9 +121,19 @@ Fuente unica de verdad:
 - `individual_predictions`
 - controles manuales guardados desde `/admin`
 
-`ENABLE_CRON` debe quedar en `false`. Las variables `WORLD_CUP_GAMES_URL`, `WORLD_CUP_GROUPS_URL`, `RAPIDAPI_KEY` y `RAPIDAPI_HOST` ya no son necesarias.
+El navegador nunca recibe la clave ni llama a API-Football. Los estados `1H`, `HT`, `2H`, `ET`, `BT` y `P` alimentan solamente la tabla publica provisional. La puntuacion cambia exclusivamente con `FT`, `AET` o `PEN`.
 
-Las rutas antiguas de sync quedan desactivadas y responden que la carga es manual.
+El scheduler agrupa fixture IDs en `/fixtures?ids=...`, usa mutex y registra cada consulta. Las prioridades P0-P3 y los modos `normal`, `saving`, `critical` y `emergency` protegen el limite diario.
+
+El panel `/admin` permite activar la sync, editar equipos populares y favoritos, destacar partidos, cambiar prioridad, asignar fixture IDs, forzar actualizaciones y revisar cuota. Resultados, posiciones finales de grupo y mejores terceros siguen siendo corregibles manualmente.
+
+Una correccion manual establece `manual_override`; `locked` impide tambien cambios en vivo. Los cambios quedan registrados en `match_result_audit`.
+
+### Limitacion comprobada del plan Free
+
+El 21 de junio de 2026 una clave Free valida respondio que `league=1&season=2026` no esta disponible y que el plan solo permite temporadas 2022-2024. La integracion muestra ese error en administracion, pero necesita un plan con acceso a 2026 para sincronizar el Mundial.
+
+Mientras el plan no tenga acceso a 2026, deja `ENABLE_CRON=false`. Las variables antiguas `WORLD_CUP_GAMES_URL`, `WORLD_CUP_GROUPS_URL`, `RAPIDAPI_KEY` y `RAPIDAPI_HOST` ya no son necesarias.
 
 ## Correcciones manuales
 
@@ -112,7 +148,7 @@ En fase de grupos los empates cuentan como empate. En eliminatorias, si el marca
 
 ## Mejores terceros
 
-Los 8 mejores terceros se calculan automaticamente cuando las 12 tablas finales de grupo tienen metricas completas:
+La ruta publica `/grupos` muestra las 12 tablas y los 12 terceros de forma provisional. Los 8 clasificados se confirman automaticamente solo cuando las 12 tablas finales tienen metricas completas:
 
 - puntos en fase de grupos
 - diferencia de gol
@@ -133,6 +169,19 @@ Archivos generados:
 - `supabase/seed.sql`
 - `supabase/seed-report.md`
 - `supabase/seed-report.json`
+- `supabase/seed-data.json`
+
+La migracion auditada se puede regenerar desde el Excel actualizado:
+
+```bash
+npm run data:generate-audit-migration -- "C:\ruta\Polla Mundial 2026 1 (2).xlsx"
+```
+
+Para aplicarla de forma idempotente con las credenciales de `.env` y recalcular los puntajes:
+
+```bash
+npm run data:apply-audit -- "C:\ruta\Polla Mundial 2026 1 (2).xlsx"
+```
 
 ## Actualizar horarios y Samuel
 

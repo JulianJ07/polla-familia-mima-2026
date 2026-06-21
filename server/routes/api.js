@@ -15,6 +15,7 @@ import {
   getLeaderboard,
   getParticipantDetail,
   getScoringAdminState,
+  getTournamentStandings,
   normalizeAwardName,
   recalculateAllScores
 } from "../services/scoring.js";
@@ -32,6 +33,13 @@ async function adminOnly(req, res, next) {
   if (provided !== expected) {
     return res.status(401).json({ error: "Password de admin invalido." });
   }
+  next();
+}
+
+function syncOnly(req, res, next) {
+  const expected = process.env.SYNC_SECRET;
+  if (!expected) return res.status(503).json({ error: "SYNC_SECRET no esta configurado." });
+  if (req.header("x-sync-secret") !== expected) return res.status(401).json({ error: "Sync secret invalido." });
   next();
 }
 
@@ -143,7 +151,7 @@ async function currentPhase() {
   return labels[upcoming[0].stage] || "Previa";
 }
 
-export function createApiRouter(io) {
+export function createApiRouter(io, footballSync) {
   const router = express.Router();
 
   router.get("/health", (_req, res) => {
@@ -178,15 +186,28 @@ export function createApiRouter(io) {
     res.json({ rows: await getLeaderboard(), at: nowIso() });
   }));
 
+  router.get("/standings", asyncHandler(async (_req, res) => {
+    res.json({
+      ...(await getTournamentStandings()),
+      sync: footballSync ? await footballSync.publicStatus() : null,
+      at: nowIso()
+    });
+  }));
+
+  router.get("/live-sync/status", asyncHandler(async (_req, res) => {
+    res.json(footballSync ? await footballSync.publicStatus() : { enabled: false, configured: false });
+  }));
+
   router.post("/scores/recalculate", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
     await recalculateAllScores();
     io.emit("scores:updated", { at: nowIso(), manual: true });
     res.json({ ok: true });
   }));
 
-  router.post("/cron/sync", (_req, res) => {
-    res.status(410).json({ error: "La sincronizacion automatica esta desactivada. Carga los resultados desde /admin." });
-  });
+  router.post("/cron/sync", syncOnly, asyncHandler(async (_req, res) => {
+    if (!footballSync) return res.status(503).json({ error: "Sincronizador no disponible." });
+    res.json(await footballSync.runOnce({ trigger: "external_cron" }));
+  }));
 
   router.get("/participants", asyncHandler(async (_req, res) => {
     const client = requireSupabase();
@@ -351,9 +372,44 @@ export function createApiRouter(io) {
     res.json({ rows: data || [] });
   }));
 
-  router.post("/admin/sync", asyncHandler(adminOnly), (_req, res) => {
-    res.status(410).json({ error: "La sincronizacion externa esta desactivada. Usa carga manual y Recalcular." });
-  });
+  router.get("/admin/live-sync", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
+    if (!footballSync) return res.status(503).json({ error: "Sincronizador no disponible." });
+    res.json(await footballSync.adminState());
+  }));
+
+  router.patch("/admin/live-sync/config", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    if (!footballSync) return res.status(503).json({ error: "Sincronizador no disponible." });
+    res.json({ ok: true, config: await footballSync.saveConfig(req.body || {}, "admin") });
+  }));
+
+  router.patch("/admin/live-sync/matches/:matchId", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    if (!footballSync) return res.status(503).json({ error: "Sincronizador no disponible." });
+    res.json({ ok: true, row: await footballSync.updateMatchSettings(String(req.params.matchId), req.body || {}, "admin") });
+  }));
+
+  router.post("/admin/live-sync/force", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
+    if (!footballSync) return res.status(503).json({ error: "Sincronizador no disponible." });
+    const matchId = String(req.body?.match_id || "").trim();
+    if (!matchId) return res.status(400).json({ error: "Debes seleccionar un partido." });
+    res.json(await footballSync.runOnce({ trigger: "admin_force", forceMatchIds: [matchId] }));
+  }));
+
+  router.post("/admin/live-sync/discover", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
+    if (!footballSync) return res.status(503).json({ error: "Sincronizador no disponible." });
+    res.json({ ok: true, ...(await footballSync.discoverFixtures({ trigger: "admin_discover" })) });
+  }));
+
+  router.post("/admin/sync", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
+    if (!footballSync) return res.status(503).json({ error: "Sincronizador no disponible." });
+    res.json(await footballSync.runOnce({ trigger: "admin" }));
+  }));
+
+  router.post("/admin/groups/recalculate", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
+    await recalculateAllScores();
+    await insertLog("admin.groups.recalculate", "ok", "Grupos y puntuacion recalculados manualmente.");
+    io.emit("scores:updated", { at: nowIso(), manual: true, groups: true });
+    res.json({ ok: true, standings: await getTournamentStandings() });
+  }));
 
   router.patch("/admin/matches/:matchId", asyncHandler(adminOnly), asyncHandler(async (req, res) => {
     const client = requireSupabase();
@@ -441,6 +497,19 @@ export function createApiRouter(io) {
       .select("*")
       .single();
     assertNoError(error, "Guardar resultado manual");
+
+    const { error: auditError } = await client.from("match_result_audit").insert({
+      match_id: matchId,
+      actor: "admin",
+      source: "admin-manual-correction",
+      reason: "Resultado editado desde el panel de administracion.",
+      previous_value: existing,
+      new_value: updated,
+      created_at: nowIso()
+    });
+    if (auditError && !/schema cache|does not exist|could not find/i.test(auditError.message || "")) {
+      assertNoError(auditError, "Auditar resultado manual");
+    }
 
     await recalculateAllScores();
     const payload = { matchId, updates };

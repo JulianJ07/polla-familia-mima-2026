@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import { createApiRouter } from "./routes/api.js";
+import { createFootballSyncService } from "./services/footballSync.js";
 
 dotenv.config({ quiet: true });
 
@@ -36,7 +37,10 @@ io.on("connection", (socket) => {
   socket.emit("connected", { ok: true });
 });
 
-app.use("/api", createApiRouter(io));
+const footballSync = createFootballSyncService(io);
+footballSync.start();
+
+app.use("/api", createApiRouter(io, footballSync));
 
 const distDir = path.join(rootDir, "client", "dist");
 app.use(express.static(distDir));

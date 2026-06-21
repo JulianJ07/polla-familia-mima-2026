@@ -18,6 +18,7 @@ export const AWARD_CONFIG = {
 
 const GROUP_CODES = "ABCDEFGHIJKL".split("");
 const KNOCKOUT_STAGES = new Set(["r32", "r16", "qf", "sf", "third", "final"]);
+const LIVE_MATCH_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT"]);
 const OPTIONAL_SCHEMA_ERROR = /schema cache|does not exist|could not find|relation .* does not exist/i;
 
 const BUILT_IN_AWARD_ALIASES = [
@@ -181,6 +182,9 @@ function emptyStanding(team) {
   return {
     team,
     played: 0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
     points: 0,
     gf: 0,
     ga: 0,
@@ -188,7 +192,120 @@ function emptyStanding(team) {
   };
 }
 
-function groupStandings(matchMap) {
+function applyStandingResult(home, away, homeGoals, awayGoals) {
+  home.played += 1;
+  away.played += 1;
+  home.gf += homeGoals;
+  home.ga += awayGoals;
+  away.gf += awayGoals;
+  away.ga += homeGoals;
+  home.gd = home.gf - home.ga;
+  away.gd = away.gf - away.ga;
+
+  if (homeGoals > awayGoals) {
+    home.wins += 1;
+    away.losses += 1;
+    home.points += 3;
+  } else if (awayGoals > homeGoals) {
+    away.wins += 1;
+    home.losses += 1;
+    away.points += 3;
+  } else {
+    home.draws += 1;
+    away.draws += 1;
+    home.points += 1;
+    away.points += 1;
+  }
+}
+
+export function assignSharedPositions(rows, signature, field = "position") {
+  let previousSignature = null;
+  let previousPosition = 0;
+  const positioned = rows.map((row, index) => {
+    const currentSignature = JSON.stringify(signature(row));
+    const position = currentSignature === previousSignature ? previousPosition : index + 1;
+    previousSignature = currentSignature;
+    previousPosition = position;
+    return { ...row, [field]: position };
+  });
+  const counts = new Map();
+  for (const row of positioned) counts.set(row[field], (counts.get(row[field]) || 0) + 1);
+  return positioned.map((row) => ({
+    ...row,
+    tied: (counts.get(row[field]) || 0) > 1,
+    positionResolved: (counts.get(row[field]) || 0) === 1
+  }));
+}
+
+function headToHeadMetrics(rows, matches, includeLive = false) {
+  const tiedTeams = new Set(rows.map((row) => cleanName(row.team)));
+  const metrics = new Map(rows.map((row) => [cleanName(row.team), emptyStanding(row.team)]));
+  for (const match of matches) {
+    if (!matchCountableForStandings(match, includeLive)) continue;
+    const homeKey = cleanName(match.home_team);
+    const awayKey = cleanName(match.away_team);
+    if (!tiedTeams.has(homeKey) || !tiedTeams.has(awayKey)) continue;
+    const [homeGoals, awayGoals] = standingGoals(match, includeLive);
+    applyStandingResult(metrics.get(homeKey), metrics.get(awayKey), homeGoals, awayGoals);
+  }
+  return metrics;
+}
+
+function standingGoals(match, includeLive) {
+  if (matchFinished(match)) return [match.home_goals, match.away_goals];
+  if (includeLive && LIVE_MATCH_STATUSES.has(match?.api_status)) {
+    return [match.live_home_goals, match.live_away_goals];
+  }
+  return [null, null];
+}
+
+function matchCountableForStandings(match, includeLive) {
+  const [homeGoals, awayGoals] = standingGoals(match, includeLive);
+  return homeGoals != null && awayGoals != null;
+}
+
+function compareNumberArrays(a = [], b = []) {
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = Number(b[index] || 0) - Number(a[index] || 0);
+    if (difference) return difference;
+  }
+  return 0;
+}
+
+function applyRecursiveHeadToHead(rows, matches, includeLive = false, prefix = []) {
+  if (rows.length <= 1) return rows.map((row) => ({ ...row, h2hTrace: prefix }));
+  const miniTable = headToHeadMetrics(rows, matches, includeLive);
+  const enriched = rows.map((row) => {
+    const direct = miniTable.get(cleanName(row.team));
+    const key = [direct?.points || 0, direct?.gd || 0, direct?.gf || 0];
+    return {
+      ...row,
+      h2hPoints: direct?.points || 0,
+      h2hGd: direct?.gd || 0,
+      h2hGf: direct?.gf || 0,
+      h2hTrace: [...prefix, ...key]
+    };
+  });
+  const buckets = new Map();
+  for (const row of enriched) {
+    const key = JSON.stringify(row.h2hTrace.slice(-3));
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(row);
+  }
+  if (buckets.size === 1) return enriched;
+  return [...buckets.values()]
+    .sort((a, b) => compareNumberArrays(a[0].h2hTrace, b[0].h2hTrace))
+    .flatMap((bucket) => bucket.length > 1
+      ? applyRecursiveHeadToHead(bucket, matches, includeLive, bucket[0].h2hTrace)
+      : bucket
+    );
+}
+
+export function calculateGroupStandings(matchesInput, { includeLive = false } = {}) {
+  const matchMap = matchesInput instanceof Map
+    ? matchesInput
+    : new Map((matchesInput || []).map((match) => [match.match_id, match]));
   const groups = new Map();
 
   for (const match of matchMap.values()) {
@@ -199,59 +316,73 @@ function groupStandings(matchMap) {
       groups.set(groupCode, {
         groupCode,
         rows: new Map(),
+        matches: [],
         totalMatches: 0,
-        finishedMatches: 0
+        finishedMatches: 0,
+        liveMatches: 0
       });
     }
 
     const group = groups.get(groupCode);
+    group.matches.push(match);
     group.totalMatches += 1;
     for (const team of [match.home_team, match.away_team].filter(Boolean)) {
       if (!group.rows.has(cleanName(team))) group.rows.set(cleanName(team), emptyStanding(team));
     }
 
-    if (!matchFinished(match)) continue;
+    if (LIVE_MATCH_STATUSES.has(match.api_status)) group.liveMatches += 1;
+    if (!matchCountableForStandings(match, includeLive)) continue;
 
-    group.finishedMatches += 1;
+    if (matchFinished(match)) group.finishedMatches += 1;
     const home = group.rows.get(cleanName(match.home_team));
     const away = group.rows.get(cleanName(match.away_team));
     if (!home || !away) continue;
-    home.played += 1;
-    away.played += 1;
-    home.gf += match.home_goals;
-    home.ga += match.away_goals;
-    away.gf += match.away_goals;
-    away.ga += match.home_goals;
-    home.gd = home.gf - home.ga;
-    away.gd = away.gf - away.ga;
-
-    if (match.home_goals > match.away_goals) {
-      home.points += 3;
-    } else if (match.away_goals > match.home_goals) {
-      away.points += 3;
-    } else {
-      home.points += 1;
-      away.points += 1;
-    }
+    const [homeGoals, awayGoals] = standingGoals(match, includeLive);
+    applyStandingResult(home, away, homeGoals, awayGoals);
   }
 
   return new Map(
     [...groups.entries()].map(([groupCode, group]) => {
-      const rows = [...group.rows.values()]
+      const rowsByPoints = new Map();
+      for (const row of group.rows.values()) {
+        if (!rowsByPoints.has(row.points)) rowsByPoints.set(row.points, []);
+        rowsByPoints.get(row.points).push(row);
+      }
+      const withTiebreaks = [...rowsByPoints.values()]
+        .flatMap((cohort) => applyRecursiveHeadToHead(cohort, group.matches, includeLive));
+      const sorted = withTiebreaks
         .sort((a, b) =>
           b.points - a.points ||
+          compareNumberArrays(a.h2hTrace, b.h2hTrace) ||
           b.gd - a.gd ||
           b.gf - a.gf ||
           a.team.localeCompare(b.team)
-        )
-        .map((row, index) => ({ ...row, position: index + 1, source: "calculated" }));
-      return [groupCode, { ...group, rows, ready: group.totalMatches > 0 && group.finishedMatches === group.totalMatches, source: "calculated" }];
+        );
+      const ready = group.totalMatches === 6 && group.finishedMatches === group.totalMatches;
+      const rows = assignSharedPositions(
+        sorted,
+        (row) => [row.points, ...(row.h2hTrace || []), row.gd, row.gf]
+      ).map((row) => ({
+        ...row,
+        source: "calculated",
+        status: !ready ? "provisional" : row.positionResolved ? "definitive" : "unresolved",
+        tiebreakApplied: (rowsByPoints.get(row.points) || []).length > 1
+          ? ["head_to_head_points", "head_to_head_goal_difference", "head_to_head_goals", "overall_goal_difference", "overall_goals"]
+          : []
+      }));
+      return [groupCode, {
+        ...group,
+        rows,
+        ready,
+        status: ready ? "definitive" : "provisional",
+        source: "calculated"
+      }];
     })
   );
 }
 
-function resolveActualGroups(matchMap, manualRows = []) {
-  const calculated = groupStandings(matchMap);
+export function resolveActualGroups(matchMap, manualRows = []) {
+  const calculated = calculateGroupStandings(matchMap);
   const manualByGroup = new Map();
 
   for (const row of manualRows || []) {
@@ -287,18 +418,25 @@ function resolveActualGroups(matchMap, manualRows = []) {
         team: row.team_code,
         position: row.final_position,
         played: calculatedRow?.played ?? null,
+        wins: calculatedRow?.wins ?? null,
+        draws: calculatedRow?.draws ?? null,
+        losses: calculatedRow?.losses ?? null,
         points: calculatedRow?.points ?? null,
         gf: calculatedRow?.gf ?? null,
         ga: calculatedRow?.ga ?? null,
         gd: calculatedRow?.gd ?? null,
-        source: row.source || "manual"
+        source: row.source || "manual",
+        tied: false,
+        positionResolved: true,
+        status: base.ready ? "definitive" : "provisional"
       };
     });
 
     resolved.set(groupCode, {
       ...base,
       rows,
-      ready: true,
+      ready: base.ready,
+      status: base.ready ? "definitive" : "provisional",
       source: "manual",
       manualRows: manual
     });
@@ -307,56 +445,50 @@ function resolveActualGroups(matchMap, manualRows = []) {
   return resolved;
 }
 
-function resolveBestThirds(actualGroups, manualRows = []) {
-  const manual = (manualRows || []).filter((row) => row.team_code).slice(0, 8);
-  if (manual.length === 8) {
-    return {
-      ready: true,
-      source: "manual",
-      rows: manual.map((row, index) => ({
-        rank: index + 1,
-        team: row.team_code,
-        groupCode: row.group_code || null,
-        source: row.source || "manual"
-      }))
-    };
-  }
-
+export function resolveBestThirds(actualGroups, manualRows = []) {
   const allReady = GROUP_CODES.every((groupCode) => actualGroups.get(groupCode)?.ready);
-  if (!allReady) {
-    return {
-      ready: false,
-      source: "pending",
-      rows: []
-    };
-  }
-
   const candidates = GROUP_CODES
     .map((groupCode) => {
       const group = actualGroups.get(groupCode);
-      const row = group?.rows.find((item) => item.position === 3);
-      return row ? { ...row, groupCode } : null;
+      const row = group?.rows[2];
+      return row ? {
+        ...row,
+        groupCode,
+        groupPositionResolved: row.position === 3 && row.positionResolved
+      } : null;
     })
     .filter((row) => row && row.points != null && row.gd != null && row.gf != null);
 
-  if (candidates.length < GROUP_CODES.length) {
-    return {
-      ready: false,
-      source: "pending_metrics",
-      rows: candidates
-        .sort((a, b) => String(a.groupCode).localeCompare(String(b.groupCode)))
-        .map((row, index) => ({ ...row, rank: index + 1, source: "calculated" }))
-    };
-  }
-
-  const ranked = candidates
-    .sort((a, b) =>
+  const ranked = assignSharedPositions(
+    candidates.sort((a, b) =>
       Number(b.points || 0) - Number(a.points || 0) ||
       Number(b.gd || 0) - Number(a.gd || 0) ||
       Number(b.gf || 0) - Number(a.gf || 0) ||
       String(a.team).localeCompare(String(b.team))
-    )
-    .map((row, index) => ({ ...row, rank: index + 1, source: "calculated" }));
+    ),
+    (row) => [Number(row.points || 0), Number(row.gd || 0), Number(row.gf || 0)],
+    "rank"
+  );
+
+  const manual = (manualRows || []).filter((row) => row.team_code).slice(0, 8);
+  const manualSet = new Set(manual.map((row) => cleanName(row.team_code)));
+  if (manual.length === 8) {
+    return {
+      ready: allReady,
+      status: allReady ? "definitive" : "provisional",
+      source: "manual",
+      rows: ranked.map((row) => ({
+        ...row,
+        classified: allReady ? manualSet.has(cleanName(row.team)) : null,
+        provisionalClassified: manualSet.has(cleanName(row.team)),
+        inQualificationZone: manualSet.has(cleanName(row.team)),
+        status: allReady
+          ? manualSet.has(cleanName(row.team)) ? "classified" : "eliminated"
+          : "provisional",
+        source: "manual"
+      }))
+    };
+  }
 
   const cutoff = ranked[7];
   const boundaryTie = cutoff
@@ -366,14 +498,27 @@ function resolveBestThirds(actualGroups, manualRows = []) {
       Number(row.gf || 0) === Number(cutoff.gf || 0)
     )
     : [];
-  const needsManualTiebreak = boundaryTie.some((row) => row.rank <= 8) && boundaryTie.some((row) => row.rank > 8);
+  const boundaryIndexes = boundaryTie.map((row) => ranked.indexOf(row));
+  const needsManualTiebreak = allReady && boundaryIndexes.some((index) => index < 8) && boundaryIndexes.some((index) => index >= 8);
+  const ready = allReady && ranked.length === 12 && !needsManualTiebreak;
 
   return {
-    ready: ranked.length >= 8 && !needsManualTiebreak,
+    ready,
+    status: !allReady ? "provisional" : needsManualTiebreak ? "unresolved" : "definitive",
     source: needsManualTiebreak ? "needs_manual_tiebreak" : "calculated",
-    rows: ranked.slice(0, 8),
+    rows: ranked.map((row, index) => {
+      const unresolved = needsManualTiebreak && boundaryTie.includes(row);
+      return {
+        ...row,
+        classified: !allReady || unresolved ? null : index < 8,
+        provisionalClassified: index < 8,
+        inQualificationZone: allReady && !unresolved ? index < 8 : index < 8,
+        status: !allReady ? "provisional" : unresolved ? "unresolved" : index < 8 ? "classified" : "eliminated",
+        source: "calculated"
+      };
+    }),
     tiebreakNote: needsManualTiebreak
-      ? "Empate en el corte de clasificación: falta conducta del equipo o ranking FIFA."
+      ? "Empate en el corte de clasificacion: se requiere un desempate oficial."
       : null
   };
 }
@@ -478,7 +623,7 @@ function predictionHitStats(prediction, match) {
   };
 }
 
-function scorePrediction(prediction, match) {
+export function scorePrediction(prediction, match) {
   if (!match || match.status !== "finished" || match.home_goals == null || match.away_goals == null) {
     return { points: 0, reason: "Pendiente" };
   }
@@ -632,7 +777,9 @@ function addGroupScoresFromRows(groups, state, context) {
     });
   }
 
-  const bestThirdSet = new Set((context.bestThirds.rows || []).map((row) => cleanName(row.team)));
+  const bestThirdSet = new Set(
+    (context.bestThirds.rows || []).filter((row) => row.classified).map((row) => cleanName(row.team))
+  );
   let bestThirdPoints = 0;
   const uniqueThirds = [...new Set(predictedThirdTeams.map(cleanName))];
   if (context.bestThirds.ready) {
@@ -880,13 +1027,89 @@ export async function getLeaderboard() {
     });
   }
 
-  rows.sort((a, b) =>
-    b.totalPoints - a.totalPoints ||
-    b.exactHits - a.exactHits ||
-    b.partialHits - a.partialHits ||
-    a.name.localeCompare(b.name)
+  rows.sort((a, b) => b.totalPoints - a.totalPoints || a.name.localeCompare(b.name));
+  return assignSharedPositions(rows, (row) => [row.totalPoints]);
+}
+
+export async function getTournamentStandings() {
+  const matchMap = await getMatchMap();
+  const context = await buildScoringContext(matchMap);
+  const liveCalculated = calculateGroupStandings(matchMap, { includeLive: true });
+  const publicGroups = new Map(GROUP_CODES.map((groupCode) => {
+    const finalGroup = context.actualGroups.get(groupCode);
+    const liveGroup = liveCalculated.get(groupCode);
+    const useLive = finalGroup?.source !== "manual" && (liveGroup?.liveMatches > 0 || !finalGroup?.ready);
+    return [groupCode, useLive ? (liveGroup || finalGroup) : finalGroup];
+  }));
+  const bestThirds = resolveBestThirds(publicGroups, context.manualBestThirdRows);
+  const thirdZone = new Set(
+    (bestThirds.rows || [])
+      .filter((row) => row.inQualificationZone || row.classified)
+      .map((row) => `${row.groupCode}:${cleanName(row.team)}`)
   );
-  return rows.map((row, index) => ({ ...row, position: index + 1 }));
+  const matches = [...matchMap.values()].filter((match) => match.stage === "group");
+  const groups = [...publicGroups.values()]
+    .filter(Boolean)
+    .sort((a, b) => a.groupCode.localeCompare(b.groupCode))
+    .map((group) => ({
+      groupCode: group.groupCode,
+      finishedMatches: group.finishedMatches,
+      liveMatches: group.liveMatches || 0,
+      totalMatches: group.totalMatches,
+      ready: group.ready,
+      status: group.liveMatches > 0 ? "live" : group.status || (group.ready ? "definitive" : "provisional"),
+      source: group.source,
+      rows: group.rows.map((row) => ({
+        ...row,
+        qualification: row.position <= 2
+          ? "direct"
+          : thirdZone.has(`${group.groupCode}:${cleanName(row.team)}`)
+            ? "best_third"
+            : "out"
+      })),
+      matches: matches
+        .filter((match) => groupFromMatch(match) === group.groupCode)
+        .sort((a, b) => String(a.match_date || "").localeCompare(String(b.match_date || "")))
+        .map((match) => {
+          const live = LIVE_MATCH_STATUSES.has(match.api_status);
+          return {
+            matchId: match.match_id,
+            homeTeam: match.home_team,
+            awayTeam: match.away_team,
+            homeGoals: live ? match.live_home_goals : match.home_goals,
+            awayGoals: live ? match.live_away_goals : match.away_goals,
+            matchDate: match.match_date,
+            status: match.status,
+            apiStatus: match.api_status || (match.status === "finished" ? "FT" : "NS"),
+            elapsed: match.api_elapsed,
+            live,
+            special: ["PST", "CANC", "ABD"].includes(match.api_status)
+          };
+        })
+    }));
+  const finishedMatches = groups.reduce((total, group) => total + group.finishedMatches, 0);
+  const totalMatches = groups.reduce((total, group) => total + group.totalMatches, 0);
+  const orderedMatches = matches
+    .filter((match) => match.status !== "finished")
+    .sort((a, b) => String(a.match_date || "9999").localeCompare(String(b.match_date || "9999")));
+  const liveMatch = orderedMatches.find((match) => LIVE_MATCH_STATUSES.has(match.api_status));
+  const defaultGroupCode = groupFromMatch(liveMatch || orderedMatches[0]) || "A";
+  const lastUpdated = matches
+    .map((match) => match.last_synced_at || match.last_updated)
+    .filter(Boolean)
+    .sort()
+    .at(-1) || null;
+  return {
+    status: groups.length === GROUP_CODES.length && groups.every((group) => group.ready)
+      ? "definitive"
+      : "provisional",
+    finishedMatches,
+    totalMatches,
+    defaultGroupCode,
+    lastUpdated,
+    groups,
+    bestThirds
+  };
 }
 
 export async function getParticipantDetail(participantId) {
@@ -957,7 +1180,9 @@ export async function getParticipantDetail(participantId) {
     .order("predicted_position", { ascending: true });
   assertNoError(groupsError, "Leer predicciones de grupos");
 
-  const bestThirdSet = new Set((context.bestThirds.rows || []).map((row) => cleanName(row.team)));
+  const bestThirdSet = new Set(
+    (context.bestThirds.rows || []).filter((row) => row.classified).map((row) => cleanName(row.team))
+  );
   const enrichedGroups = (groups || []).map((row) => {
     const group = context.actualGroups.get(String(row.group_code || "").toUpperCase());
     const actual = group?.rows.find((standing) => sameTeam(standing.team, row.team_code));
@@ -1057,7 +1282,7 @@ export async function getScoringAdminState() {
   const awards = Object.fromEntries(context.awardResults.entries());
   const thirdOptions = [...context.actualGroups.values()]
     .flatMap((group) => {
-      const third = group.rows.find((row) => row.position === 3);
+      const third = group.rows[2];
       return third ? [{
         value: `${group.groupCode}|${third.team}`,
         label: `Grupo ${group.groupCode} - ${third.team}`,

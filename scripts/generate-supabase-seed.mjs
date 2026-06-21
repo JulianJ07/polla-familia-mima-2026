@@ -507,5 +507,11 @@ fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "seed.sql"), lines.join("\n"), "utf8");
 fs.writeFileSync(path.join(outDir, "seed-report.json"), JSON.stringify(report, null, 2), "utf8");
 fs.writeFileSync(path.join(outDir, "seed-report.md"), warningLines.join("\n"), "utf8");
+fs.writeFileSync(path.join(outDir, "seed-data.json"), JSON.stringify({
+  participants: participants.map(({ id, sheetName, name }) => ({ id, sheetName, name })),
+  predictions,
+  groupPredictions,
+  individualPredictions
+}, null, 2), "utf8");
 
 console.log(JSON.stringify(report.counts, null, 2));

@@ -10,9 +10,13 @@
     "build": "vite build",
     "start": "node server/index.js",
     "seed:sql": "node scripts/generate-supabase-seed.mjs",
+    "data:generate-audit-migration": "node scripts/generate-20260621-audit-migration.mjs",
+    "data:apply-audit": "node scripts/apply-20260621-audit.mjs",
     "data:update-schedule-samuel": "node scripts/apply-schedule-and-samuel.mjs",
     "data:fix-marquez": "node scripts/apply-marquez-corrections.mjs",
-    "check": "npm run build"
+    "audit:scoring": "node scripts/audit-current-group-scoring.mjs",
+    "test": "node --test",
+    "check": "npm test && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
