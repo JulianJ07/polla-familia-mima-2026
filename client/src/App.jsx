@@ -837,7 +837,7 @@ function MatchCard({ match, index, clockNow, onSelect }) {
       <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <strong className="truncate text-right text-white">{match.home_team}</strong>
         <span className="score-box">
-          {match.home_goals == null ? "-" : match.home_goals} : {match.away_goals == null ? "-" : match.away_goals}
+          {match.display_home_goals == null ? "-" : match.display_home_goals} : {match.display_away_goals == null ? "-" : match.display_away_goals}
         </span>
         <strong className="truncate text-white">{match.away_team}</strong>
       </div>
@@ -1726,19 +1726,25 @@ function LiveSyncControl({ state, form, setForm, selectedMatch, syncMatchForm, s
         <span className={cx("sync-mode-pill", `sync-mode-${status.mode || "offline"}`)}>{status.mode || "sin configurar"}</span>
       </div>
 
-      {migrationRequired && <div className="admin-warning">Modo compatible activo con respaldo ESPN. La migracion 20260622 sigue pendiente para habilitar prioridades y API-Football.</div>}
+      {migrationRequired && <div className="admin-warning">Falta ejecutar la migracion 20260622_provider_resilience.sql para habilitar el control resiliente de proveedores.</div>}
       {status.lastError && <div className="admin-warning">{status.lastError}</div>}
+      {status.apiAccessAvailable === false && <div className="admin-warning">API-Football 2026 no disponible: {status.apiAccessReason || "acceso no confirmado"}. Se comprobara nuevamente cada 24 horas.</div>}
+      {status.espnLastError && <div className="admin-warning">Respaldo ESPN en espera: {status.espnLastError}</div>}
 
       <div className="sync-stat-grid">
         <div><span>Usadas hoy</span><strong>{status.used || 0}</strong></div>
         <div><span>Disponibles</span><strong>{status.remaining ?? 0}</strong></div>
         <div><span>Limite</span><strong>{status.dailyLimit || 100}</strong></div>
         <div><span>API key</span><strong>{status.configured ? "Lista" : "Falta"}</strong></div>
+        <div><span>Acceso API 2026</span><strong>{status.apiAccessAvailable === true ? "Disponible" : status.apiAccessAvailable === false ? "No disponible" : "Sin comprobar"}</strong></div>
+        <div><span>Ultima prueba API</span><strong>{status.apiAccessCheckedAt ? timeAgo(status.apiAccessCheckedAt) : "Nunca"}</strong></div>
+        <div><span>Ultimo ESPN correcto</span><strong>{status.espnLastSuccessAt ? timeAgo(status.espnLastSuccessAt) : "Nunca"}</strong></div>
+        <div><span>Fallos ESPN</span><strong>{status.espnConsecutiveFailures || 0}</strong></div>
       </div>
 
       <div className="live-sync-config-grid">
         <label className="field-label">
-          <span>Sincronizacion automatica</span>
+          <span>API-Football (gestion automatica diaria)</span>
           <select className="text-input" value={form.enabled ? "on" : "off"} onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.value === "on" }))}>
             <option value="off">Desactivada</option><option value="on">Activada</option>
           </select>
@@ -1804,7 +1810,9 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
     manual_override: true,
     locked: false,
     qualified_team: "",
-    decided_by_penalties: false
+    decided_by_penalties: false,
+    home_penalties: "",
+    away_penalties: ""
   });
 
   function nullableNumber(value) {
@@ -1970,6 +1978,10 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       setMessage("Los goles deben ser numeros enteros mayores o iguales a 0.");
       return;
     }
+    if (!isWholeNumberString(matchForm.home_penalties) || !isWholeNumberString(matchForm.away_penalties)) {
+      setMessage("Los penales deben ser numeros enteros mayores o iguales a 0.");
+      return;
+    }
     if (matchForm.status === "finished" && (matchForm.home_goals === "" || matchForm.away_goals === "")) {
       setMessage("Si el partido esta finished, debes escribir goles local y visitante.");
       return;
@@ -1988,6 +2000,8 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       if (selectedMatch?.stage !== "group") {
         payload.qualified_team = matchForm.qualified_team || null;
         payload.decided_by_penalties = matchForm.decided_by_penalties;
+        payload.home_penalties = matchForm.decided_by_penalties ? nullableNumber(matchForm.home_penalties) : null;
+        payload.away_penalties = matchForm.decided_by_penalties ? nullableNumber(matchForm.away_penalties) : null;
       }
       await adminPatch(`/admin/matches/${encodeURIComponent(selectedMatchId)}`, password, payload);
       setMessage("Resultado manual guardado y tabla recalculada.");
@@ -2130,7 +2144,9 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
         manual_override: true,
         locked: false,
         qualified_team: "",
-        decided_by_penalties: false
+        decided_by_penalties: false,
+        home_penalties: "",
+        away_penalties: ""
       });
       return;
     }
@@ -2144,7 +2160,9 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
       manual_override: selectedMatch.manual_override ?? true,
       locked: selectedMatch.locked ?? false,
       qualified_team: selectedMatch.qualified_team || "",
-      decided_by_penalties: Boolean(selectedMatch.decided_by_penalties)
+      decided_by_penalties: Boolean(selectedMatch.decided_by_penalties),
+      home_penalties: selectedMatch.home_penalties ?? "",
+      away_penalties: selectedMatch.away_penalties ?? ""
     });
     setSyncMatchForm({
       apiFixtureId: selectedMatch.api_fixture_id || "",
@@ -2442,6 +2460,18 @@ function AdminView({ password, setPassword, leaderboard, onDone }) {
                     <option value={matchForm.away_team}>{matchForm.away_team || "Equipo visitante"}</option>
                   </select>
                 </label>
+              )}
+              {selectedIsKnockoutFinished && matchForm.decided_by_penalties && (
+                <>
+                  <label className="field-label">
+                    Penales local
+                    <input className="text-input" type="number" min="0" value={matchForm.home_penalties} onChange={(event) => setMatchForm((current) => ({ ...current, home_penalties: event.target.value }))} />
+                  </label>
+                  <label className="field-label">
+                    Penales visitante
+                    <input className="text-input" type="number" min="0" value={matchForm.away_penalties} onChange={(event) => setMatchForm((current) => ({ ...current, away_penalties: event.target.value }))} />
+                  </label>
+                </>
               )}
             </div>
             {showQualifiedWarning && (

@@ -77,6 +77,7 @@ Para habilitar la sincronizacion inteligente, ejecuta despues:
 
 ```sql
 -- supabase/migrations/20260622_api_football_smart_sync.sql
+-- supabase/migrations/20260622_provider_resilience.sql
 -- agrega cache en vivo, fixture IDs, prioridad, cuota, configuracion y auditoria.
 ```
 
@@ -123,17 +124,19 @@ Fuente unica de verdad:
 
 El navegador nunca recibe la clave ni llama a API-Football. Los estados `1H`, `HT`, `2H`, `ET`, `BT` y `P` alimentan solamente la tabla publica provisional. La puntuacion cambia exclusivamente con `FT`, `AET` o `PEN`.
 
-El scheduler consulta primero el marcador gratuito de ESPN y agrupa fixture IDs de API-Football en `/fixtures?ids=...` cuando esa integracion esta habilitada. Usa mutex y registra cada consulta. Las prioridades P0-P3 y los modos `normal`, `saving`, `critical` y `emergency` protegen el limite diario de API-Football.
+El scheduler no llama a ningun proveedor si no hay partidos en vivo ni partidos que comiencen en las proximas dos horas. Cerca del inicio consulta de forma espaciada; en vivo aplica las frecuencias P0-P3. API-Football agrupa fixture IDs en `/fixtures?ids=...` y protege su limite diario con los modos `normal`, `saving`, `critical` y `emergency`.
+
+ESPN es solamente un respaldo: usa timeout de 9 segundos, backoff progresivo de 2 a 60 minutos y conserva el ultimo resultado valido ante errores. El panel Admin muestra su ultimo intento, ultima sincronizacion correcta, error y numero de fallos consecutivos.
 
 El panel `/admin` permite activar la sync, editar equipos populares y favoritos, destacar partidos, cambiar prioridad, asignar fixture IDs, forzar actualizaciones y revisar cuota. Resultados, posiciones finales de grupo y mejores terceros siguen siendo corregibles manualmente.
 
 Una correccion manual establece `manual_override`; `locked` impide tambien cambios en vivo. Los cambios quedan registrados en `match_result_audit`.
 
-### Limitacion comprobada del plan Free
+### Acceso dinamico de API-Football
 
-El 21 de junio de 2026 una clave Free valida respondio que `league=1&season=2026` no esta disponible y que el plan solo permite temporadas 2022-2024. La integracion muestra ese error en administracion y usa ESPN como respaldo automatico para el Mundial.
+Al iniciar y luego cada 24 horas, el backend hace una consulta minima para `league=1&season=2026`. Si funciona, habilita API-Football; si el proveedor rechaza la temporada o el plan, la desactiva por 24 horas, guarda el motivo exacto y continua con ESPN.
 
-Mientras el plan no tenga acceso a 2026, deja API-Football desactivado desde Admin y conserva `ENABLE_CRON=true` para ESPN. Las variables antiguas `WORLD_CUP_GAMES_URL`, `WORLD_CUP_GROUPS_URL`, `RAPIDAPI_KEY` y `RAPIDAPI_HOST` ya no son necesarias.
+El 21 de junio de 2026 la clave Free usada en pruebas rechazo esa temporada, pero esto no queda codificado como regla permanente. Un cambio de plan se detecta automaticamente en la siguiente comprobacion diaria. Conserva `ENABLE_CRON=true`; las variables antiguas `WORLD_CUP_GAMES_URL`, `WORLD_CUP_GROUPS_URL`, `RAPIDAPI_KEY` y `RAPIDAPI_HOST` ya no son necesarias.
 
 ## Correcciones manuales
 
@@ -143,8 +146,9 @@ Los partidos tienen campos de proteccion y cierre:
 - `locked`: el partido queda blindado para cambios accidentales.
 - `qualified_team`: equipo clasificado/ganador de la llave en eliminatorias.
 - `decided_by_penalties`: marca informativa si la llave se definio por penales.
+- `home_penalties` y `away_penalties`: tanda separada del marcador normal.
 
-En fase de grupos los empates cuentan como empate. En eliminatorias, si el marcador queda empatado, el admin debe seleccionar `qualified_team` para que el scoring asigne puntos de ganador/clasificado.
+La jerarquia es: manual bloqueado, manual no bloqueado, API-Football, ESPN y ultimo valor valido en Supabase. En fase de grupos los empates cuentan como empate. En eliminatorias, un 1-1 con tanda 4-3 sigue almacenado y puntuado como 1-1; el clasificado y los penales se guardan por separado.
 
 ## Mejores terceros
 

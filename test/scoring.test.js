@@ -41,6 +41,25 @@ test("eliminatorias: respeta ganador y marcador exacto", () => {
   assert.equal(scorePrediction(prediction, winner).points, 3);
 });
 
+test("los penales no se suman al marcador normal", () => {
+  const prediction = {
+    stage: "r16",
+    predicted_home_team: "Colombia",
+    predicted_away_team: "Brasil",
+    predicted_home_goals: 1,
+    predicted_away_goals: 1
+  };
+  const match = {
+    ...groupMatch("A-1", "Colombia", "Brasil", 1, 1),
+    stage: "r16",
+    qualified_team: "Colombia",
+    decided_by_penalties: true,
+    home_penalties: 4,
+    away_penalties: 3
+  };
+  assert.equal(scorePrediction(prediction, match).points, 5);
+});
+
 test("mini-tabla resuelve un empate multiple antes de la diferencia general", () => {
   const matches = [
     groupMatch("A-1", "A", "B", 1, 0),

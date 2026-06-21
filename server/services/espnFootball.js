@@ -33,7 +33,10 @@ function normalizedEvent(event) {
     homeTeam: home.team.displayName,
     awayTeam: away.team.displayName,
     homeGoals: Number.isFinite(Number(home.score)) ? Number(home.score) : null,
-    awayGoals: Number.isFinite(Number(away.score)) ? Number(away.score) : null
+    awayGoals: Number.isFinite(Number(away.score)) ? Number(away.score) : null,
+    homePenalties: Number.isFinite(Number(home.shootoutScore)) ? Number(home.shootoutScore) : null,
+    awayPenalties: Number.isFinite(Number(away.shootoutScore)) ? Number(away.shootoutScore) : null,
+    winnerTeam: home.winner === true ? home.team.displayName : away.winner === true ? away.team.displayName : null
   };
 }
 
@@ -52,7 +55,7 @@ export class EspnFootballClient {
     url.searchParams.set("dates", String(date).replaceAll("-", ""));
     let response;
     try {
-      response = await this.fetchImpl(url, { signal: AbortSignal.timeout(20_000) });
+      response = await this.fetchImpl(url, { signal: AbortSignal.timeout(9_000) });
     } catch (error) {
       throw new EspnFootballError(`No se pudo conectar con ESPN: ${error.message}`);
     }

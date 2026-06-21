@@ -43,3 +43,18 @@ test("propaga claramente una restriccion del plan", async () => {
     (error) => error instanceof ApiFootballError && /Free plans/.test(error.message)
   );
 });
+
+test("prueba acceso a la temporada con una consulta minima por fecha", async () => {
+  let requestUrl;
+  const client = new ApiFootballClient({
+    apiKey: "secret-test-key",
+    fetchImpl: async (url) => {
+      requestUrl = String(url);
+      return response({ results: 0, response: [], errors: [] });
+    }
+  });
+  await client.probeSeasonAccess(1, 2026, "2026-06-21");
+  assert.match(requestUrl, /league=1/);
+  assert.match(requestUrl, /season=2026/);
+  assert.match(requestUrl, /date=2026-06-21/);
+});

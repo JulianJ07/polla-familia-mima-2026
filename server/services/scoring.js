@@ -19,6 +19,12 @@ export const AWARD_CONFIG = {
 const GROUP_CODES = "ABCDEFGHIJKL".split("");
 const KNOCKOUT_STAGES = new Set(["r32", "r16", "qf", "sf", "third", "final"]);
 const LIVE_MATCH_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT"]);
+
+function matchIsLive(match) {
+  return match?.status === "live" ||
+    LIVE_MATCH_STATUSES.has(match?.api_status) ||
+    ["LIVE", "HT"].includes(match?.espn_status);
+}
 const OPTIONAL_SCHEMA_ERROR = /schema cache|does not exist|could not find|relation .* does not exist/i;
 
 const BUILT_IN_AWARD_ALIASES = [
@@ -253,7 +259,7 @@ function headToHeadMetrics(rows, matches, includeLive = false) {
 
 function standingGoals(match, includeLive) {
   if (matchFinished(match)) return [match.home_goals, match.away_goals];
-  if (includeLive && LIVE_MATCH_STATUSES.has(match?.api_status)) {
+  if (includeLive && matchIsLive(match)) {
     return [match.live_home_goals, match.live_away_goals];
   }
   return [null, null];
@@ -330,7 +336,7 @@ export function calculateGroupStandings(matchesInput, { includeLive = false } = 
       if (!group.rows.has(cleanName(team))) group.rows.set(cleanName(team), emptyStanding(team));
     }
 
-    if (LIVE_MATCH_STATUSES.has(match.api_status)) group.liveMatches += 1;
+    if (matchIsLive(match)) group.liveMatches += 1;
     if (!matchCountableForStandings(match, includeLive)) continue;
 
     if (matchFinished(match)) group.finishedMatches += 1;
@@ -1071,7 +1077,7 @@ export async function getTournamentStandings() {
         .filter((match) => groupFromMatch(match) === group.groupCode)
         .sort((a, b) => String(a.match_date || "").localeCompare(String(b.match_date || "")))
         .map((match) => {
-          const live = LIVE_MATCH_STATUSES.has(match.api_status);
+          const live = matchIsLive(match);
           return {
             matchId: match.match_id,
             homeTeam: match.home_team,
@@ -1080,7 +1086,7 @@ export async function getTournamentStandings() {
             awayGoals: live ? match.live_away_goals : match.away_goals,
             matchDate: match.match_date,
             status: match.status,
-            apiStatus: match.api_status || (match.status === "finished" ? "FT" : "NS"),
+            apiStatus: match.api_status || match.espn_status || (match.status === "finished" ? "FT" : "NS"),
             elapsed: match.api_elapsed,
             live,
             special: ["PST", "CANC", "ABD"].includes(match.api_status)
@@ -1092,7 +1098,7 @@ export async function getTournamentStandings() {
   const orderedMatches = matches
     .filter((match) => match.status !== "finished")
     .sort((a, b) => String(a.match_date || "9999").localeCompare(String(b.match_date || "9999")));
-  const liveMatch = orderedMatches.find((match) => LIVE_MATCH_STATUSES.has(match.api_status));
+  const liveMatch = orderedMatches.find(matchIsLive);
   const defaultGroupCode = groupFromMatch(liveMatch || orderedMatches[0]) || "A";
   const lastUpdated = matches
     .map((match) => match.last_synced_at || match.last_updated)

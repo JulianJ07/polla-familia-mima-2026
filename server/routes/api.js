@@ -256,7 +256,14 @@ export function createApiRouter(io, footballSync) {
           stat.result_count += 1;
         }
       }
-      return { ...match, ...stat, stageLabel: stageLabel(match.stage) };
+      const live = match.status === "live" || ["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(match.api_status || match.espn_status);
+      return {
+        ...match,
+        display_home_goals: live ? match.live_home_goals : match.home_goals,
+        display_away_goals: live ? match.live_away_goals : match.away_goals,
+        ...stat,
+        stageLabel: stageLabel(match.stage)
+      };
     });
     res.json({ rows });
   }));
@@ -418,7 +425,12 @@ export function createApiRouter(io, footballSync) {
     const updates = {};
     const errors = [];
 
-    for (const [key, label] of [["home_goals", "Goles local"], ["away_goals", "Goles visitante"]]) {
+    for (const [key, label] of [
+      ["home_goals", "Goles local"],
+      ["away_goals", "Goles visitante"],
+      ["home_penalties", "Penales local"],
+      ["away_penalties", "Penales visitante"]
+    ]) {
       if (!hasOwn(body, key)) continue;
       const parsed = optionalInteger(body[key]);
       if (parsed === undefined) errors.push(`${label} debe ser un entero mayor o igual a 0.`);
@@ -477,11 +489,15 @@ export function createApiRouter(io, footballSync) {
     } else if (!isKnockout || nextStatus !== "finished") {
       updates.decided_by_penalties = false;
     }
+    if (!isKnockout || nextStatus !== "finished" || updates.decided_by_penalties === false) {
+      updates.home_penalties = null;
+      updates.away_penalties = null;
+    }
 
     if (errors.length) return res.status(400).json({ error: errors.join(" ") });
     if (!Object.keys(updates).length) return res.status(400).json({ error: "No hay cambios para guardar." });
 
-    const correctionFields = ["home_goals", "away_goals", "status", "match_date", "qualified_team", "decided_by_penalties"];
+    const correctionFields = ["home_goals", "away_goals", "home_penalties", "away_penalties", "status", "match_date", "qualified_team", "decided_by_penalties"];
     const changedMatchData = correctionFields.some((field) => hasOwn(updates, field) && valuesDiffer(updates[field], existing[field], field));
     if (changedMatchData) updates.manual_override = true;
 
