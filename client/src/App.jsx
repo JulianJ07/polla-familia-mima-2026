@@ -171,6 +171,42 @@ function dateOnlyColombia(value) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+const MATCH_DURATION_MS = 2 * 60 * 60 * 1000;
+
+function matchStartTime(match) {
+  const start = new Date(match?.match_date).getTime();
+  return Number.isNaN(start) ? null : start;
+}
+
+function isMatchToday(match, now = Date.now()) {
+  return Boolean(match?.match_date) && dateOnlyColombia(match.match_date) === dateOnlyColombia(now);
+}
+
+function isMatchPlaying(match, now = Date.now()) {
+  if (match?.status === "finished") return false;
+  const start = matchStartTime(match);
+  return start != null && now >= start && now < start + MATCH_DURATION_MS;
+}
+
+function sortMatchesForDisplay(a, b, now = Date.now()) {
+  const startA = matchStartTime(a) ?? Number.POSITIVE_INFINITY;
+  const startB = matchStartTime(b) ?? Number.POSITIVE_INFINITY;
+  const todayA = isMatchToday(a, now);
+  const todayB = isMatchToday(b, now);
+  const playingA = isMatchPlaying(a, now);
+  const playingB = isMatchPlaying(b, now);
+
+  if (playingA !== playingB) return playingA ? -1 : 1;
+  if (todayA !== todayB) return todayA ? -1 : 1;
+
+  if (todayA && todayB) return startA - startB;
+
+  const futureA = startA >= now;
+  const futureB = startB >= now;
+  if (futureA !== futureB) return futureA ? -1 : 1;
+  return futureA ? startA - startB : startB - startA;
+}
+
 function datetimeLocalColombia(value) {
   const parts = colombiaParts(value);
   if (!parts) return "";
@@ -202,11 +238,11 @@ function AnimatedNumber({ value }) {
   return <motion.span>{rounded}</motion.span>;
 }
 
-function StatusPill({ status }) {
-  const config = {
+function StatusPill({ status, playing = false }) {
+  const config = playing ? ["Jugando", "status-playing"] : ({
     finished: ["Finalizado", "status-finished"],
     scheduled: ["Programado", "status-scheduled"]
-  }[status] || ["Pendiente", "status-scheduled"];
+  }[status] || ["Pendiente", "status-scheduled"]);
   return <span className={cx("status-pill", config[1])}>{config[0]}</span>;
 }
 
@@ -749,21 +785,29 @@ function MatchesView({ matches, stage, setStage }) {
   const [selectedMatchId, setSelectedMatchId] = useState(null);
   const [matchDetail, setMatchDetail] = useState(null);
   const [matchDetailBusy, setMatchDetailBusy] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const groupOptions = useMemo(() => {
     const options = [...new Set(matches.map(groupCodeFromMatch).filter(Boolean))].sort();
     return ["all", ...options];
   }, [matches]);
   const filtered = useMemo(() => {
     const search = normalizeSearchText(query);
-    return matches.filter((match) => {
-      const stageOk = stage === "all" || match.stage === stage;
-      if (!stageOk) return false;
-      const groupOk = groupFilter === "all" || groupCodeFromMatch(match) === groupFilter;
-      if (!groupOk) return false;
-      if (!search) return true;
-      return normalizeSearchText(`${match.home_team} ${match.away_team} ${match.stageLabel} ${match.match_id}`).includes(search);
-    });
-  }, [groupFilter, matches, query, stage]);
+    return matches
+      .filter((match) => {
+        const stageOk = stage === "all" || match.stage === stage;
+        if (!stageOk) return false;
+        const groupOk = groupFilter === "all" || groupCodeFromMatch(match) === groupFilter;
+        if (!groupOk) return false;
+        if (!search) return true;
+        return normalizeSearchText(`${match.home_team} ${match.away_team} ${match.stageLabel} ${match.match_id}`).includes(search);
+      })
+      .sort((a, b) => sortMatchesForDisplay(a, b, clockNow));
+  }, [clockNow, groupFilter, matches, query, stage]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (stage !== "group") setGroupFilter("all");
@@ -836,24 +880,32 @@ function MatchesView({ matches, stage, setStage }) {
       )}
 
       <div className="match-grid">
-        {filtered.map((match, index) => (
-          <motion.button
-            key={match.match_id}
-            type="button"
-            className={cx("match-card match-card-button", `match-${match.status || "scheduled"}`)}
-            onClick={() => setSelectedMatchId(match.match_id)}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, delay: Math.min(index, 10) * 0.018 }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="match-stage">{match.stageLabel}</span>
-              <StatusPill status={match.status} />
-            </div>
-            <div className="mt-2 flex items-center gap-2 text-xs font-bold text-muted">
-              <CalendarClock size={14} />
-              <span>{formatColombiaDate(match.match_date)}</span>
-            </div>
+        {filtered.map((match, index) => {
+          const playing = isMatchPlaying(match, clockNow);
+          const today = isMatchToday(match, clockNow);
+          return (
+            <motion.button
+              key={match.match_id}
+              type="button"
+              className={cx(
+                "match-card match-card-button",
+                playing ? "match-playing" : `match-${match.status || "scheduled"}`,
+                today && "match-today"
+              )}
+              onClick={() => setSelectedMatchId(match.match_id)}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, delay: Math.min(index, 10) * 0.018 }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="match-stage">{match.stageLabel}</span>
+                <StatusPill status={match.status} playing={playing} />
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs font-bold text-muted">
+                <CalendarClock size={14} />
+                <span>{formatColombiaDate(match.match_date)}</span>
+                {today && <span className="today-chip">Hoy</span>}
+              </div>
             <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <strong className="truncate text-right text-white">{match.home_team}</strong>
               <span className="score-box">
@@ -875,8 +927,9 @@ function MatchesView({ matches, stage, setStage }) {
                 <small>resultados acertados</small>
               </div>
             </div>
-          </motion.button>
-        ))}
+            </motion.button>
+          );
+        })}
       </div>
 
       {selectedMatchId && (
