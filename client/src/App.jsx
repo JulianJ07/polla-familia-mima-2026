@@ -182,6 +182,13 @@ function isMatchToday(match, now = Date.now()) {
   return Boolean(match?.match_date) && dateOnlyColombia(match.match_date) === dateOnlyColombia(now);
 }
 
+function isMatchInCurrentRound(match, now = Date.now()) {
+  const start = matchStartTime(match);
+  if (start == null) return false;
+  const currentDay = dateOnlyColombia(now);
+  return dateOnlyColombia(start) === currentDay || dateOnlyColombia(start + MATCH_DURATION_MS) === currentDay;
+}
+
 function isMatchPlaying(match, now = Date.now()) {
   if (match?.status === "finished") return false;
   const start = matchStartTime(match);
@@ -191,8 +198,8 @@ function isMatchPlaying(match, now = Date.now()) {
 function sortMatchesForDisplay(a, b, now = Date.now()) {
   const startA = matchStartTime(a) ?? Number.POSITIVE_INFINITY;
   const startB = matchStartTime(b) ?? Number.POSITIVE_INFINITY;
-  const todayA = isMatchToday(a, now);
-  const todayB = isMatchToday(b, now);
+  const todayA = isMatchInCurrentRound(a, now);
+  const todayB = isMatchInCurrentRound(b, now);
   const playingA = isMatchPlaying(a, now);
   const playingB = isMatchPlaying(b, now);
 
@@ -779,6 +786,57 @@ function ParticipantBracketPreview({ predictions }) {
   );
 }
 
+function MatchCard({ match, index, clockNow, onSelect }) {
+  const playing = isMatchPlaying(match, clockNow);
+  const today = isMatchToday(match, clockNow);
+
+  return (
+    <motion.button
+      type="button"
+      className={cx(
+        "match-card match-card-button",
+        playing ? "match-playing" : `match-${match.status || "scheduled"}`,
+        today && "match-today"
+      )}
+      onClick={() => onSelect(match.match_id)}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, delay: Math.min(index, 10) * 0.018 }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="match-stage">{match.stageLabel}</span>
+        <StatusPill status={match.status} playing={playing} />
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-xs font-bold text-muted">
+        <CalendarClock size={14} />
+        <span>{formatColombiaDate(match.match_date)}</span>
+        {today && <span className="today-chip">Hoy</span>}
+      </div>
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <strong className="truncate text-right text-white">{match.home_team}</strong>
+        <span className="score-box">
+          {match.home_goals == null ? "-" : match.home_goals} : {match.away_goals == null ? "-" : match.away_goals}
+        </span>
+        <strong className="truncate text-white">{match.away_team}</strong>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+        <div className="mini-stat">
+          <span>{match.prediction_count || 0}</span>
+          <small>pronosticos</small>
+        </div>
+        <div className="mini-stat">
+          <span>{match.exact_count || 0}</span>
+          <small>marcadores exactos</small>
+        </div>
+        <div className="mini-stat">
+          <span>{match.result_count || 0}</span>
+          <small>resultados acertados</small>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
 function MatchesView({ matches, stage, setStage }) {
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -803,6 +861,8 @@ function MatchesView({ matches, stage, setStage }) {
       })
       .sort((a, b) => sortMatchesForDisplay(a, b, clockNow));
   }, [clockNow, groupFilter, matches, query, stage]);
+  const currentRoundMatches = filtered.filter((match) => isMatchInCurrentRound(match, clockNow));
+  const remainingMatches = filtered.filter((match) => !isMatchInCurrentRound(match, clockNow));
 
   useEffect(() => {
     const interval = window.setInterval(() => setClockNow(Date.now()), 60_000);
@@ -879,58 +939,36 @@ function MatchesView({ matches, stage, setStage }) {
         </div>
       )}
 
-      <div className="match-grid">
-        {filtered.map((match, index) => {
-          const playing = isMatchPlaying(match, clockNow);
-          const today = isMatchToday(match, clockNow);
-          return (
-            <motion.button
-              key={match.match_id}
-              type="button"
-              className={cx(
-                "match-card match-card-button",
-                playing ? "match-playing" : `match-${match.status || "scheduled"}`,
-                today && "match-today"
-              )}
-              onClick={() => setSelectedMatchId(match.match_id)}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.24, delay: Math.min(index, 10) * 0.018 }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="match-stage">{match.stageLabel}</span>
-                <StatusPill status={match.status} playing={playing} />
-              </div>
-              <div className="mt-2 flex items-center gap-2 text-xs font-bold text-muted">
-                <CalendarClock size={14} />
-                <span>{formatColombiaDate(match.match_date)}</span>
-                {today && <span className="today-chip">Hoy</span>}
-              </div>
-            <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <strong className="truncate text-right text-white">{match.home_team}</strong>
-              <span className="score-box">
-                {match.home_goals == null ? "-" : match.home_goals} : {match.away_goals == null ? "-" : match.away_goals}
-              </span>
-              <strong className="truncate text-white">{match.away_team}</strong>
+      {!!currentRoundMatches.length && (
+        <div className="match-section match-section-today">
+          <div className="match-section-heading">
+            <div>
+              <p className="eyebrow">Jornada actual</p>
+              <h3>Partidos de hoy</h3>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-              <div className="mini-stat">
-                <span>{match.prediction_count || 0}</span>
-                <small>pronosticos</small>
-              </div>
-              <div className="mini-stat">
-                <span>{match.exact_count || 0}</span>
-                <small>marcadores exactos</small>
-              </div>
-              <div className="mini-stat">
-                <span>{match.result_count || 0}</span>
-                <small>resultados acertados</small>
-              </div>
-            </div>
-            </motion.button>
-          );
-        })}
-      </div>
+            <span>{currentRoundMatches.length} partidos</span>
+          </div>
+          <div className="match-grid match-grid-today">
+            {currentRoundMatches.map((match, index) => (
+              <MatchCard key={match.match_id} match={match} index={index} clockNow={clockNow} onSelect={setSelectedMatchId} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!!remainingMatches.length && (
+        <div className="match-section">
+          <div className="match-section-heading match-section-heading-secondary">
+            <h3>{currentRoundMatches.length ? "Proximos y anteriores" : "Partidos"}</h3>
+            <span>{remainingMatches.length} partidos</span>
+          </div>
+          <div className="match-grid">
+            {remainingMatches.map((match, index) => (
+              <MatchCard key={match.match_id} match={match} index={index} clockNow={clockNow} onSelect={setSelectedMatchId} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {selectedMatchId && (
         <MatchDetailModal
