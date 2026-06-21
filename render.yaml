@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: ENABLE_CRON
-        value: false
+        value: true
       - key: API_FOOTBALL_KEY
         sync: false
       - key: API_FOOTBALL_BASE_URL

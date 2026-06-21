@@ -1,6 +1,7 @@
 import { assertNoError, insertLog, nowIso, requireSupabase } from "../db/supabase.js";
 import { recalculateAllScores } from "./scoring.js";
 import { ApiFootballClient, ApiFootballError } from "./apiFootball.js";
+import { EspnFootballClient } from "./espnFootball.js";
 import {
   ACTIVE_API_STATUSES,
   DEFAULT_SYNC_CONFIG,
@@ -18,6 +19,41 @@ import {
 const OPTIONAL_SCHEMA_ERROR = /schema cache|does not exist|could not find|relation .* does not exist|column .* does not exist/i;
 
 const TEAM_ALIASES = new Map(Object.entries({
+  belgium: "belgica",
+  spain: "espana",
+  tunisia: "tunez",
+  japan: "japon",
+  egypt: "egipto",
+  germany: "alemania",
+  sweden: "suecia",
+  morocco: "marruecos",
+  scotland: "escocia",
+  brazil: "brasil",
+  france: "francia",
+  england: "inglaterra",
+  norway: "noruega",
+  croatia: "croacia",
+  panama: "panama",
+  algeria: "argelia",
+  jordan: "jordania",
+  iraq: "irak",
+  switzerland: "suiza",
+  qatar: "catar",
+  "bosnia and herzegovina": "bosnia",
+  uzbekistan: "uzbekistan",
+  mexico: "mexico",
+  canada: "canada",
+  haiti: "haiti",
+  colombia: "colombia",
+  portugal: "portugal",
+  argentina: "argentina",
+  austria: "austria",
+  ghana: "ghana",
+  senegal: "senegal",
+  uruguay: "uruguay",
+  paraguay: "paraguay",
+  australia: "australia",
+  ecuador: "ecuador",
   "korea republic": "corea",
   "south korea": "corea",
   "czech republic": "chequia",
@@ -112,12 +148,14 @@ function normalizeConfigUpdate(input = {}) {
 export class FootballSyncService {
   constructor(io, {
     apiClient = new ApiFootballClient(),
+    fallbackClient = new EspnFootballClient(),
     getClient = requireSupabase,
     clock = () => new Date(),
     intervalMs = 60_000
   } = {}) {
     this.io = io;
     this.apiClient = apiClient;
+    this.fallbackClient = fallbackClient;
     this.getClient = getClient;
     this.clock = clock;
     this.intervalMs = intervalMs;
@@ -180,6 +218,8 @@ export class FootballSyncService {
     return {
       enabled: config.enabled,
       configured: this.apiClient.configured,
+      fallbackConfigured: this.fallbackClient.configured,
+      fallbackActive: this.migrationRequired || !config.enabled,
       migrationRequired: this.migrationRequired,
       mode: quota.mode,
       used: quota.used,
@@ -426,15 +466,87 @@ export class FootballSyncService {
     return true;
   }
 
+  async runEspnFallback({ trigger = "scheduler" } = {}) {
+    if (!this.fallbackClient.configured) return { provider: "espn", requests: 0, processed: 0, finalChanged: 0 };
+    const client = this.getClient();
+    const now = this.clock();
+    const windowStart = new Date(now.getTime() - 18 * 60 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + 36 * 60 * 60 * 1000);
+    const { data: matches, error } = await client
+      .from("match_results")
+      .select("match_id,home_team,away_team,stage,match_date,status,home_goals,away_goals,source,manual_override,locked")
+      .gte("match_date", windowStart.toISOString())
+      .lte("match_date", windowEnd.toISOString());
+    assertNoError(error, "Leer partidos para respaldo ESPN");
+
+    const dates = new Set();
+    for (const match of matches || []) dates.add(utcDate(match.match_date));
+    const fixtures = [];
+    for (const date of dates) fixtures.push(...await this.fallbackClient.fetchDate(date));
+
+    let processed = 0;
+    let finalChanged = 0;
+    for (const fixture of fixtures) {
+      const fixtureTime = new Date(fixture.date).getTime();
+      const match = (matches || []).find((candidate) =>
+        Math.abs(new Date(candidate.match_date).getTime() - fixtureTime) <= 4 * 60 * 60 * 1000 &&
+        canonicalTeam(candidate.home_team) === canonicalTeam(fixture.homeTeam) &&
+        canonicalTeam(candidate.away_team) === canonicalTeam(fixture.awayTeam)
+      );
+      if (!match || fixture.status === "NS" || isAutomaticResultProtected(match)) continue;
+      if (!Number.isInteger(fixture.homeGoals) || !Number.isInteger(fixture.awayGoals)) continue;
+      const final = fixture.status === "FT";
+      const nextStatus = final ? "finished" : "live";
+      const differs = match.home_goals !== fixture.homeGoals || match.away_goals !== fixture.awayGoals || match.status !== nextStatus;
+      if (!differs) continue;
+      const updatedAt = this.clock().toISOString();
+      const updates = {
+        home_goals: fixture.homeGoals,
+        away_goals: fixture.awayGoals,
+        status: nextStatus,
+        source: "espn",
+        manual_override: false,
+        last_updated: updatedAt,
+        raw_payload: { provider: "espn", event_id: fixture.id, status: fixture.status, detail: fixture.detail }
+      };
+      if (final) updates.confirmed_at = updatedAt;
+      const { data: row, error: updateError } = await client
+        .from("match_results")
+        .update(updates)
+        .eq("match_id", match.match_id)
+        .select("*")
+        .single();
+      assertNoError(updateError, `Actualizar ${match.match_id} desde ESPN`);
+      processed += 1;
+      if (final) finalChanged += 1;
+      this.io?.emit("match:updated", {
+        at: updatedAt,
+        matchId: match.match_id,
+        groupCode: String(match.match_id).match(/^G-([A-L])-/)?.[1] || null,
+        row,
+        final
+      });
+    }
+    if (finalChanged) await recalculateAllScores();
+    if (processed) {
+      this.io?.emit("scores:updated", { at: this.clock().toISOString(), source: "espn" });
+      await insertLog("espn.sync", "ok", `${processed} partido(s) actualizados desde ESPN.`, { trigger, processed, finalChanged });
+    }
+    return { provider: "espn", requests: dates.size, processed, finalChanged };
+  }
+
   async runOnce({ trigger = "scheduler", forceMatchIds = [] } = {}) {
     if (this.running) return { ok: false, skipped: "locked", message: "Ya hay una sincronizacion en curso." };
     this.running = true;
     this.lastError = null;
+    let fallbackResult = null;
     try {
       const config = await this.loadConfig();
-      if (this.migrationRequired) return { ok: false, skipped: "migration_required" };
-      if (!this.apiClient.configured) return { ok: false, skipped: "api_key_missing" };
-      if (!config.enabled && !forceMatchIds.length) return { ok: false, skipped: "disabled" };
+      fallbackResult = await this.runEspnFallback({ trigger });
+      this.lastRunAt = this.clock().toISOString();
+      if (this.migrationRequired) return { ok: true, migrationRequired: true, ...fallbackResult };
+      if (!this.apiClient.configured) return { ok: true, apiFootballSkipped: "api_key_missing", ...fallbackResult };
+      if (!config.enabled && !forceMatchIds.length) return { ok: true, apiFootballSkipped: "disabled", ...fallbackResult };
 
       const client = this.getClient();
       const { data: matches, error } = await client.from("match_results").select("*");
@@ -536,6 +648,9 @@ export class FootballSyncService {
       const status = error instanceof ApiFootballError ? "api_error" : "error";
       await insertLog("api-football.sync", status, error.message, { trigger, apiErrors: error.apiErrors || null });
       this.io?.emit("live-sync:status", await this.publicStatus().catch(() => ({ lastError: error.message })));
+      if (error instanceof ApiFootballError && fallbackResult) {
+        return { ok: true, apiFootballError: error.message, ...fallbackResult };
+      }
       throw error;
     } finally {
       this.running = false;

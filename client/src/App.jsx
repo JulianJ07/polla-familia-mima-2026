@@ -1726,7 +1726,7 @@ function LiveSyncControl({ state, form, setForm, selectedMatch, syncMatchForm, s
         <span className={cx("sync-mode-pill", `sync-mode-${status.mode || "offline"}`)}>{status.mode || "sin configurar"}</span>
       </div>
 
-      {migrationRequired && <div className="admin-warning">Falta ejecutar la migracion 20260622_api_football_smart_sync.sql.</div>}
+      {migrationRequired && <div className="admin-warning">Modo compatible activo con respaldo ESPN. La migracion 20260622 sigue pendiente para habilitar prioridades y API-Football.</div>}
       {status.lastError && <div className="admin-warning">{status.lastError}</div>}
 
       <div className="sync-stat-grid">
@@ -1751,7 +1751,7 @@ function LiveSyncControl({ state, form, setForm, selectedMatch, syncMatchForm, s
       </div>
       <div className="flex flex-wrap gap-3">
         <button className="secondary-button" type="button" onClick={onSaveConfig} disabled={busy || migrationRequired}><CheckCircle2 size={17} /> Guardar configuracion</button>
-        <button className="secondary-button" type="button" onClick={onRun} disabled={busy || migrationRequired}><RefreshCw size={17} /> Ejecutar ciclo</button>
+        <button className="secondary-button" type="button" onClick={onRun} disabled={busy}><RefreshCw size={17} /> Ejecutar ciclo</button>
         <button className="secondary-button" type="button" onClick={onDiscover} disabled={busy || migrationRequired}><Search size={17} /> Descubrir fixture IDs</button>
       </div>
 

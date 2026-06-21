@@ -107,7 +107,7 @@ API_FOOTBALL_BASE_URL=https://v3.football.api-sports.io
 SYNC_SECRET=
 ```
 
-Activa `ENABLE_CRON=true` solamente despues de ejecutar la migracion, mapear los fixture IDs y confirmar que el plan de API-Football tiene acceso a la temporada 2026.
+Usa `ENABLE_CRON=true` para mantener activo el respaldo ESPN. La migracion y el mapeo de fixture IDs siguen siendo necesarios para las prioridades y funciones avanzadas de API-Football.
 
 Despues de aplicar migraciones, sube la rama al repositorio conectado a Render. El `render.yaml` ejecuta el build y el arranque; valida `/api/health`, `/api/meta`, `/api/standings` y finalmente `/grupos`.
 
@@ -123,7 +123,7 @@ Fuente unica de verdad:
 
 El navegador nunca recibe la clave ni llama a API-Football. Los estados `1H`, `HT`, `2H`, `ET`, `BT` y `P` alimentan solamente la tabla publica provisional. La puntuacion cambia exclusivamente con `FT`, `AET` o `PEN`.
 
-El scheduler agrupa fixture IDs en `/fixtures?ids=...`, usa mutex y registra cada consulta. Las prioridades P0-P3 y los modos `normal`, `saving`, `critical` y `emergency` protegen el limite diario.
+El scheduler consulta primero el marcador gratuito de ESPN y agrupa fixture IDs de API-Football en `/fixtures?ids=...` cuando esa integracion esta habilitada. Usa mutex y registra cada consulta. Las prioridades P0-P3 y los modos `normal`, `saving`, `critical` y `emergency` protegen el limite diario de API-Football.
 
 El panel `/admin` permite activar la sync, editar equipos populares y favoritos, destacar partidos, cambiar prioridad, asignar fixture IDs, forzar actualizaciones y revisar cuota. Resultados, posiciones finales de grupo y mejores terceros siguen siendo corregibles manualmente.
 
@@ -131,9 +131,9 @@ Una correccion manual establece `manual_override`; `locked` impide tambien cambi
 
 ### Limitacion comprobada del plan Free
 
-El 21 de junio de 2026 una clave Free valida respondio que `league=1&season=2026` no esta disponible y que el plan solo permite temporadas 2022-2024. La integracion muestra ese error en administracion, pero necesita un plan con acceso a 2026 para sincronizar el Mundial.
+El 21 de junio de 2026 una clave Free valida respondio que `league=1&season=2026` no esta disponible y que el plan solo permite temporadas 2022-2024. La integracion muestra ese error en administracion y usa ESPN como respaldo automatico para el Mundial.
 
-Mientras el plan no tenga acceso a 2026, deja `ENABLE_CRON=false`. Las variables antiguas `WORLD_CUP_GAMES_URL`, `WORLD_CUP_GROUPS_URL`, `RAPIDAPI_KEY` y `RAPIDAPI_HOST` ya no son necesarias.
+Mientras el plan no tenga acceso a 2026, deja API-Football desactivado desde Admin y conserva `ENABLE_CRON=true` para ESPN. Las variables antiguas `WORLD_CUP_GAMES_URL`, `WORLD_CUP_GROUPS_URL`, `RAPIDAPI_KEY` y `RAPIDAPI_HOST` ya no son necesarias.
 
 ## Correcciones manuales
 
