@@ -122,7 +122,7 @@ Fuente unica de verdad:
 - `individual_predictions`
 - controles manuales guardados desde `/admin`
 
-El navegador nunca recibe la clave ni llama a API-Football. Los estados `1H`, `HT`, `2H`, `ET`, `BT` y `P` alimentan solamente la tabla publica provisional. La puntuacion cambia exclusivamente con `FT`, `AET` o `PEN`.
+El navegador nunca recibe la clave ni llama a API-Football. Los estados `1H`, `HT`, `2H`, `ET`, `BT`, `P` y `LIVE` alimentan las tablas publicas provisionales. Durante el partido, `/leaderboard` suma los puntos que daria el marcador actual y los marca como `en vivo`; no se guardan en `scores_cache`. Al finalizar, esa capa desaparece y se aplica el calculo oficial con `FT`, `AET` o `PEN`.
 
 El scheduler no llama a ningun proveedor si no hay partidos en vivo ni partidos que comiencen en las proximas dos horas. Cerca del inicio consulta de forma espaciada; en vivo aplica las frecuencias P0-P3. API-Football agrupa fixture IDs en `/fixtures?ids=...` y protege su limite diario con los modos `normal`, `saving`, `critical` y `emergency`.
 

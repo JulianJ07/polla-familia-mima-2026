@@ -332,6 +332,7 @@ function AppShell({ activeView, setActiveView, meta, onRefresh, refreshing, chil
 
 function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParticipant, participantDetail }) {
   const lastUpdate = leaderboard[0]?.lastCalculated || meta.lastCalculated;
+  const hasLiveScores = leaderboard.some((row) => Number(row.liveMatchCount || 0) > 0);
   return (
     <>
       <section className="hero-section">
@@ -345,7 +346,7 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
             </div>
             <div className="hero-meta-card">
               <CalendarClock size={16} />
-              <span>Actualizado {timeAgo(lastUpdate)}</span>
+              <span>{hasLiveScores ? "Puntos provisionales en vivo" : `Actualizado ${timeAgo(lastUpdate)}`}</span>
             </div>
           </div>
 
@@ -396,8 +397,13 @@ function LeaderboardView({ leaderboard, meta, onSelectParticipant, selectedParti
                         </span>
                       )}
                     </span>
-                    <span className="font-display text-4xl text-gold">
+                    <span className="leaderboard-points-cell font-display text-4xl text-gold">
                       <AnimatedNumber value={row.totalPoints} />
+                      {row.liveMatchCount > 0 && (
+                        <small className="live-points-chip">
+                          {row.provisionalPoints > 0 ? `+${row.provisionalPoints} en vivo` : "En vivo"}
+                        </small>
+                      )}
                     </span>
                     <span className="leaderboard-metric leaderboard-stat-col">
                       <strong>{row.exactHits || 0}</strong>
@@ -532,6 +538,7 @@ function ParticipantPanel({ detail }) {
         <div className="min-w-0">
           <h3 className="section-title truncate">{detail.participant.name}</h3>
           <p className="text-sm font-semibold text-muted">{formatPoints(detail.totalPoints)} puntos</p>
+          {detail.liveMatchCount > 0 && <span className="live-points-chip">{detail.provisionalPoints > 0 ? `+${formatPoints(detail.provisionalPoints)} en vivo` : "En vivo"}</span>}
         </div>
         <BarChart3 className="text-mint" />
       </div>

@@ -21,6 +21,7 @@ const KNOCKOUT_STAGES = new Set(["r32", "r16", "qf", "sf", "third", "final"]);
 const LIVE_MATCH_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT"]);
 
 function matchIsLive(match) {
+  if (match?.status === "finished") return false;
   return match?.status === "live" ||
     LIVE_MATCH_STATUSES.has(match?.api_status) ||
     ["LIVE", "HT"].includes(match?.espn_status);
@@ -716,6 +717,32 @@ export function scorePrediction(prediction, match) {
   return { points: 0, reason: "Sin regla" };
 }
 
+function liveMatchForScoring(match) {
+  if (!matchIsLive(match) || match?.live_home_goals == null || match?.live_away_goals == null) return null;
+  const virtual = {
+    ...match,
+    status: "finished",
+    home_goals: match.live_home_goals,
+    away_goals: match.live_away_goals
+  };
+  if (isKnockoutStage(match.stage)) {
+    virtual.qualified_team = match.live_home_goals > match.live_away_goals
+      ? match.home_team
+      : match.live_away_goals > match.live_home_goals
+        ? match.away_team
+        : null;
+  }
+  return virtual;
+}
+
+export function scoreLivePrediction(prediction, match) {
+  const virtual = liveMatchForScoring(match);
+  if (!virtual) return { points: 0, reason: "Sin marcador en vivo", exact: false, partial: false };
+  const scored = scorePrediction(prediction, virtual);
+  const hits = predictionHitStats(prediction, virtual);
+  return { ...scored, exact: hits.exact, partial: hits.partial, virtualMatch: virtual };
+}
+
 function addScore(state, category, points) {
   state.total += points;
   state.byCategory[category] = Number(((state.byCategory[category] || 0) + points).toFixed(2));
@@ -964,6 +991,50 @@ async function calculateAllParticipantScores(participants, matchMap, context) {
   return scores;
 }
 
+async function calculateLiveScoreAdjustments(matchMap) {
+  const client = requireSupabase();
+  const liveMatches = [...matchMap.values()].filter((match) => liveMatchForScoring(match));
+  if (!liveMatches.length) return { byParticipant: new Map(), liveMatchCount: 0, lastUpdated: null };
+  const liveById = new Map(liveMatches.map((match) => [match.match_id, match]));
+  const predictions = await fetchAllRows(
+    client.from("predictions").select("*").in("match_id", [...liveById.keys()]),
+    "Leer pronosticos en vivo"
+  );
+  const byParticipant = new Map();
+  for (const prediction of predictions) {
+    const match = liveById.get(prediction.match_id);
+    const scored = scoreLivePrediction(prediction, match);
+    const current = byParticipant.get(prediction.participant_id) || {
+      points: 0,
+      exactHits: 0,
+      partialHits: 0,
+      byCategory: {},
+      details: []
+    };
+    current.points += scored.points;
+    if (scored.exact) current.exactHits += 1;
+    else if (scored.partial) current.partialHits += 1;
+    current.byCategory[prediction.stage] = Number(((current.byCategory[prediction.stage] || 0) + scored.points).toFixed(2));
+    current.details.push({
+      matchId: prediction.match_id,
+      label: `${match.home_team} vs ${match.away_team}`,
+      ok: scored.points > 0,
+      points: scored.points,
+      provisional: true
+    });
+    byParticipant.set(prediction.participant_id, current);
+  }
+  const timestamps = liveMatches
+    .map((match) => match.espn_last_synced_at || match.last_synced_at || match.last_updated)
+    .filter(Boolean)
+    .sort();
+  return {
+    byParticipant,
+    liveMatchCount: liveMatches.length,
+    lastUpdated: timestamps[timestamps.length - 1] || null
+  };
+}
+
 export async function recalculateAllScores() {
   const client = requireSupabase();
   const { data: participants, error } = await client.from("participants").select("id");
@@ -1006,21 +1077,34 @@ export async function getLeaderboard() {
   const scoreMap = new Map((scores || []).map((score) => [score.participant_id, score]));
   const matchMap = await getMatchMap();
   const context = await buildScoringContext(matchMap);
-  const calculatedScores = await calculateAllParticipantScores(participants || [], matchMap, context);
+  const [calculatedScores, liveAdjustments] = await Promise.all([
+    calculateAllParticipantScores(participants || [], matchMap, context),
+    calculateLiveScoreAdjustments(matchMap)
+  ]);
   const rows = [];
 
   for (const participant of participants || []) {
     const score = calculatedScores.get(participant.id);
     const cached = scoreMap.get(participant.id);
+    const live = liveAdjustments.byParticipant.get(participant.id) || { points: 0, exactHits: 0, partialHits: 0, byCategory: {}, details: [] };
+    const officialPoints = Number(score.total ?? cached?.total_points ?? 0);
+    const provisionalPoints = Number(live.points.toFixed(2));
+    const byCategory = { ...score.byCategory };
+    for (const [category, points] of Object.entries(live.byCategory)) {
+      byCategory[category] = Number(((byCategory[category] || 0) + points).toFixed(2));
+    }
     rows.push({
       id: participant.id,
       name: participant.name,
-      totalPoints: Number(score.total ?? cached?.total_points ?? 0),
-      exactHits: score.exactHits,
-      partialHits: score.partialHits,
-      matchesPlayed: score.matchesPlayed,
-      byCategory: score.byCategory,
-      recent: score.details
+      totalPoints: Number((officialPoints + provisionalPoints).toFixed(2)),
+      officialPoints,
+      provisionalPoints,
+      liveMatchCount: liveAdjustments.liveMatchCount,
+      exactHits: score.exactHits + live.exactHits,
+      partialHits: score.partialHits + live.partialHits,
+      matchesPlayed: score.matchesPlayed + liveAdjustments.liveMatchCount,
+      byCategory,
+      recent: [...score.details
         .filter((item) => item.type === "match")
         .slice(-5)
         .map((item) => ({
@@ -1028,8 +1112,8 @@ export async function getLeaderboard() {
           label: item.label,
           ok: item.points > 0,
           points: item.points
-        })),
-      lastCalculated: cached?.last_calculated || null
+        })), ...live.details].slice(-5),
+      lastCalculated: liveAdjustments.lastUpdated || cached?.last_calculated || null
     });
   }
 
@@ -1140,6 +1224,12 @@ export async function getParticipantDetail(participantId) {
     .order("match_id", { ascending: true });
   assertNoError(predictionError, "Leer detalle de predicciones");
 
+  const livePredictionScores = (predictions || []).map((prediction) => ({
+    matchId: prediction.match_id,
+    ...scoreLivePrediction(prediction, matchMap.get(prediction.match_id))
+  })).filter((item) => item.virtualMatch);
+  const provisionalPoints = Number(livePredictionScores.reduce((total, item) => total + item.points, 0).toFixed(2));
+
   const enrichedPredictions = (predictions || [])
     .map((prediction) => {
       const match = matchMap.get(prediction.match_id);
@@ -1237,7 +1327,10 @@ export async function getParticipantDetail(participantId) {
 
   return {
     participant,
-    totalPoints: breakdown.total,
+    totalPoints: Number((breakdown.total + provisionalPoints).toFixed(2)),
+    officialPoints: breakdown.total,
+    provisionalPoints,
+    liveMatchCount: new Set(livePredictionScores.map((item) => item.matchId)).size,
     breakdown,
     predictions: enrichedPredictions,
     individual,

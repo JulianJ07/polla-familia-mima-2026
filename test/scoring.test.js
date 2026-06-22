@@ -5,6 +5,7 @@ import {
   calculateGroupStandings,
   resolveActualGroups,
   resolveBestThirds,
+  scoreLivePrediction,
   scorePrediction
 } from "../server/services/scoring.js";
 
@@ -89,7 +90,7 @@ test("reaplica el enfrentamiento directo al subconjunto que sigue empatado", () 
   assert.equal(rows.find((row) => row.team === "B").gd > rows.find((row) => row.team === "C").gd, true);
 });
 
-test("un marcador en vivo mueve la tabla publica pero no puntua la polla", () => {
+test("un marcador en vivo mueve las tablas y suma puntos provisionales", () => {
   const liveMatch = {
     ...groupMatch("A-1", "A", "B", null, null, "scheduled"),
     api_status: "2H",
@@ -100,6 +101,22 @@ test("un marcador en vivo mueve la tabla publica pero no puntua la polla", () =>
   const publicRows = calculateGroupStandings([liveMatch], { includeLive: true }).get("A").rows;
   assert.equal(publicRows.find((row) => row.team === "A").points, 3);
   assert.equal(scorePrediction({ stage: "group", predicted_home_goals: 2, predicted_away_goals: 0 }, liveMatch).points, 0);
+  assert.equal(scoreLivePrediction({ stage: "group", predicted_home_goals: 2, predicted_away_goals: 0 }, liveMatch).points, 3);
+  assert.equal(scoreLivePrediction({ stage: "group", predicted_home_goals: 1, predicted_away_goals: 0 }, liveMatch).points, 1);
+});
+
+test("los puntos en vivo desaparecen cuando el partido deja de estar jugando", () => {
+  const scheduled = {
+    ...groupMatch("A-1", "A", "B", null, null, "scheduled"),
+    api_status: "NS",
+    live_home_goals: 2,
+    live_away_goals: 0
+  };
+  assert.equal(scoreLivePrediction({ stage: "group", predicted_home_goals: 2, predicted_away_goals: 0 }, scheduled).points, 0);
+  assert.equal(scoreLivePrediction(
+    { stage: "group", predicted_home_goals: 2, predicted_away_goals: 0 },
+    { ...scheduled, status: "finished", espn_status: "LIVE", home_goals: 2, away_goals: 0 }
+  ).points, 0);
 });
 
 test("un empate no resuelto conserva la misma posicion", () => {

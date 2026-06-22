@@ -9,6 +9,7 @@ function timestamp(value) {
 }
 
 export function isLiveProviderMatch(match) {
+  if (match?.status === "finished") return false;
   return match?.status === "live" ||
     ACTIVE_API_STATUSES.has(String(match?.api_status || "").toUpperCase()) ||
     ["LIVE", "HT"].includes(String(match?.espn_status || "").toUpperCase());

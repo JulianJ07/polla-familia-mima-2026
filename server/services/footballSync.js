@@ -426,11 +426,13 @@ export class FootballSyncService {
     };
     let finalChanged = false;
     let firstFinal = false;
+    let liveChanged = false;
 
     if (ACTIVE_API_STATUSES.has(apiStatus)) {
       if (isAutomaticResultProtected(match)) {
         updates.sync_error = "Actualizacion en vivo omitida: prevalece el resultado manual.";
       } else if (match.status !== "finished") {
+        liveChanged = match.live_home_goals !== homeGoals || match.live_away_goals !== awayGoals || match.status !== "live";
         updates.live_home_goals = homeGoals;
         updates.live_away_goals = awayGoals;
         updates.live_source = "api-football";
@@ -522,7 +524,7 @@ export class FootballSyncService {
       row: data,
       final: FINAL_API_STATUSES.has(apiStatus)
     });
-    return { row: data, finalChanged, firstFinal, priority };
+    return { row: data, finalChanged, liveChanged, firstFinal, priority };
   }
 
   async maybeProbeApiAccess(config, currentState = {}, trigger = "scheduler") {
@@ -906,9 +908,17 @@ export class FootballSyncService {
         }
       }
 
-      if (processed.some((item) => item.finalChanged)) {
+      const finalScoresChanged = processed.some((item) => item.finalChanged);
+      const liveScoresChanged = processed.some((item) => item.liveChanged);
+      if (finalScoresChanged) {
         await recalculateAllScores();
-        this.io?.emit("scores:updated", { at: this.clock().toISOString(), source: "api-football" });
+      }
+      if (finalScoresChanged || liveScoresChanged) {
+        this.io?.emit("scores:updated", {
+          at: this.clock().toISOString(),
+          source: "api-football",
+          provisional: liveScoresChanged && !finalScoresChanged
+        });
       }
       const scorersUpdated = await this.maybeSyncTopScorers(processed, config, selection.quota, trigger);
       this.lastRunAt = this.clock().toISOString();
