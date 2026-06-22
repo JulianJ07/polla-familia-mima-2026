@@ -2,6 +2,7 @@ import { assertNoError, insertLog, nowIso, requireSupabase } from "../db/supabas
 import { recalculateAllScores } from "./scoring.js";
 import { ApiFootballClient, ApiFootballError } from "./apiFootball.js";
 import { EspnFootballClient } from "./espnFootball.js";
+import { espnPollingDecision, progressiveBackoffMinutes, providerActivity } from "./providerPolicy.js";
 import {
   ACTIVE_API_STATUSES,
   DEFAULT_SYNC_CONFIG,
@@ -17,6 +18,8 @@ import {
 } from "./syncPolicy.js";
 
 const OPTIONAL_SCHEMA_ERROR = /schema cache|does not exist|could not find|relation .* does not exist|column .* does not exist/i;
+const ACCESS_DENIED_ERROR = /plan|access|season|temporada|not have access|not available/i;
+const MANUAL_SOURCES = new Set(["admin", "manual", "fifa_official_audit"]);
 
 const TEAM_ALIASES = new Map(Object.entries({
   belgium: "belgica",
@@ -114,7 +117,15 @@ function resultSnapshot(match) {
 }
 
 export function isAutomaticResultProtected(match) {
-  return match?.locked === true || (match?.manual_override === true && match?.source !== "api-football");
+  return match?.locked === true || match?.manual_override === true || MANUAL_SOURCES.has(String(match?.source || "").toLowerCase());
+}
+
+export function providerCanReplaceFinal(match, provider) {
+  if (isAutomaticResultProtected(match)) return false;
+  if (match?.status !== "finished") return true;
+  if (provider === "espn") return false;
+  if (provider === "api-football") return [null, "", "espn", "api-football", "worldcup26"].includes(match?.source ?? null);
+  return false;
 }
 
 function winnerFromFixture(match, fixture, apiStatus) {
@@ -129,6 +140,11 @@ function winnerFromFixture(match, fixture, apiStatus) {
     if (awayPenalties > homePenalties) return match.away_team;
   }
   return null;
+}
+
+function penaltyScoreFromFixture(fixture, side) {
+  const value = fixture?.score?.penalty?.[side];
+  return Number.isInteger(value) ? value : null;
 }
 
 function normalizeConfigUpdate(input = {}) {
@@ -178,6 +194,43 @@ export class FootballSyncService {
     return normalizeSyncConfig(data || DEFAULT_SYNC_CONFIG);
   }
 
+  async loadProviderStates() {
+    const client = this.getClient();
+    const { data, error } = await client.from("football_provider_state").select("*");
+    if (error && OPTIONAL_SCHEMA_ERROR.test(error.message || "")) {
+      this.migrationRequired = true;
+      return new Map();
+    }
+    assertNoError(error, "Leer estado de proveedores");
+    return new Map((data || []).map((row) => [row.provider, row]));
+  }
+
+  async saveProviderState(provider, updates) {
+    const client = this.getClient();
+    const row = { provider, ...updates, updated_at: this.clock().toISOString() };
+    const { data, error } = await client
+      .from("football_provider_state")
+      .upsert(row, { onConflict: "provider" })
+      .select("*")
+      .single();
+    if (error && OPTIONAL_SCHEMA_ERROR.test(error.message || "")) {
+      this.migrationRequired = true;
+      return { provider, ...updates };
+    }
+    assertNoError(error, `Guardar estado de ${provider}`);
+    return data;
+  }
+
+  async setApiEnabled(enabled, actor) {
+    const client = this.getClient();
+    const { error } = await client.from("football_sync_config").update({
+      enabled,
+      updated_at: this.clock().toISOString(),
+      updated_by: actor
+    }).eq("id", 1);
+    if (error && !OPTIONAL_SCHEMA_ERROR.test(error.message || "")) assertNoError(error, "Actualizar acceso API-Football");
+  }
+
   async usageToday(endpoint = null) {
     const client = this.getClient();
     let query = client
@@ -213,13 +266,15 @@ export class FootballSyncService {
 
   async publicStatus() {
     const config = await this.loadConfig();
-    const used = await this.usageToday();
+    const [used, providerStates] = await Promise.all([this.usageToday(), this.loadProviderStates()]);
     const quota = getQuotaState(used, config);
+    const apiState = providerStates.get("api-football") || {};
+    const espnState = providerStates.get("espn") || {};
     return {
       enabled: config.enabled,
       configured: this.apiClient.configured,
       fallbackConfigured: this.fallbackClient.configured,
-      fallbackActive: this.migrationRequired || !config.enabled,
+      fallbackActive: espnState.access_available !== false,
       migrationRequired: this.migrationRequired,
       mode: quota.mode,
       used: quota.used,
@@ -227,13 +282,22 @@ export class FootballSyncService {
       dailyLimit: quota.totalLimit,
       limited: quota.mode === "critical" || quota.mode === "emergency",
       lastRunAt: this.lastRunAt,
-      lastError: this.lastError
+      lastError: this.lastError,
+      apiAccessAvailable: apiState.access_available ?? null,
+      apiAccessCheckedAt: apiState.access_checked_at || null,
+      apiAccessReason: apiState.access_reason || null,
+      apiBackoffUntil: apiState.backoff_until || null,
+      espnLastSuccessAt: espnState.last_success_at || null,
+      espnLastAttemptAt: espnState.last_attempt_at || null,
+      espnLastError: espnState.last_error || null,
+      espnBackoffUntil: espnState.backoff_until || null,
+      espnConsecutiveFailures: Number(espnState.consecutive_failures || 0)
     };
   }
 
   async adminState() {
     const client = this.getClient();
-    const [config, status] = await Promise.all([this.loadConfig(), this.publicStatus()]);
+    const [config, status, providerStates] = await Promise.all([this.loadConfig(), this.publicStatus(), this.loadProviderStates()]);
     if (this.migrationRequired) return { config, status, matches: [], usage: [] };
     const [{ data: matches, error: matchError }, { data: usage, error: usageError }] = await Promise.all([
       client
@@ -244,7 +308,7 @@ export class FootballSyncService {
     ]);
     assertNoError(matchError, "Leer partidos para sincronizacion");
     assertNoError(usageError, "Leer consumo de API-Football");
-    return { config, status, matches: matches || [], usage: usage || [] };
+    return { config, status, providers: [...providerStates.values()], matches: matches || [], usage: usage || [] };
   }
 
   async saveConfig(input, actor = "admin") {
@@ -362,13 +426,25 @@ export class FootballSyncService {
     };
     let finalChanged = false;
     let firstFinal = false;
+    let liveChanged = false;
 
     if (ACTIVE_API_STATUSES.has(apiStatus)) {
-      if (match.locked) {
-        updates.sync_error = "Actualizacion en vivo omitida: partido bloqueado.";
-      } else {
+      if (isAutomaticResultProtected(match)) {
+        updates.sync_error = "Actualizacion en vivo omitida: prevalece el resultado manual.";
+      } else if (match.status !== "finished") {
+        liveChanged = match.live_home_goals !== homeGoals || match.live_away_goals !== awayGoals || match.status !== "live";
         updates.live_home_goals = homeGoals;
         updates.live_away_goals = awayGoals;
+        updates.live_source = "api-football";
+        updates.status = "live";
+        updates.home_goals = null;
+        updates.away_goals = null;
+        updates.source = null;
+        updates.confirmed_at = null;
+        updates.qualified_team = null;
+        updates.decided_by_penalties = false;
+        updates.home_penalties = null;
+        updates.away_penalties = null;
       }
     } else if (apiStatus === "NS") {
       updates.live_home_goals = null;
@@ -380,10 +456,17 @@ export class FootballSyncService {
       const confirmationCount = firstFinal ? 0 : Number(match.final_confirmation_count || 0) + 1;
       updates.api_final_at = match.api_final_at || now;
       updates.final_confirmation_count = confirmationCount;
-      const resultDiffers = match.home_goals !== homeGoals || match.away_goals !== awayGoals || match.status !== "finished";
-      const protectedResult = isAutomaticResultProtected(match);
-      if (resultDiffers && protectedResult) {
-        updates.sync_error = "Resultado API diferente; protegido por ajuste manual o bloqueo.";
+      const qualifiedTeam = match.stage === "group" ? null : winnerFromFixture(match, fixture, apiStatus);
+      const decidedByPenalties = match.stage !== "group" && apiStatus === "PEN";
+      const homePenalties = decidedByPenalties ? penaltyScoreFromFixture(fixture, "home") : null;
+      const awayPenalties = decidedByPenalties ? penaltyScoreFromFixture(fixture, "away") : null;
+      const resultDiffers = match.home_goals !== homeGoals ||
+        match.away_goals !== awayGoals ||
+        match.status !== "finished" ||
+        (match.qualified_team || null) !== qualifiedTeam ||
+        Boolean(match.decided_by_penalties) !== decidedByPenalties;
+      if (resultDiffers && !providerCanReplaceFinal(match, "api-football")) {
+        updates.sync_error = "Resultado API diferente; prevalece una fuente manual de mayor prioridad.";
         await client.from("match_result_audit").insert({
           match_id: match.match_id,
           actor: "scheduler",
@@ -412,9 +495,15 @@ export class FootballSyncService {
         updates.confirmed_at = now;
         updates.source = "api-football";
         updates.manual_override = false;
+        updates.live_source = null;
+        updates.home_penalties = homePenalties;
+        updates.away_penalties = awayPenalties;
         if (match.stage !== "group") {
-          updates.qualified_team = winnerFromFixture(match, fixture, apiStatus);
-          updates.decided_by_penalties = apiStatus === "PEN";
+          updates.qualified_team = qualifiedTeam;
+          updates.decided_by_penalties = decidedByPenalties;
+        } else {
+          updates.qualified_team = null;
+          updates.decided_by_penalties = false;
         }
         finalChanged = true;
       }
@@ -435,7 +524,70 @@ export class FootballSyncService {
       row: data,
       final: FINAL_API_STATUSES.has(apiStatus)
     });
-    return { row: data, finalChanged, firstFinal, priority };
+    return { row: data, finalChanged, liveChanged, firstFinal, priority };
+  }
+
+  async maybeProbeApiAccess(config, currentState = {}, trigger = "scheduler") {
+    const now = this.clock();
+    const checkedAt = currentState.access_checked_at ? new Date(currentState.access_checked_at).getTime() : 0;
+    const backoffUntil = currentState.backoff_until ? new Date(currentState.backoff_until).getTime() : 0;
+    if (checkedAt && now.getTime() - checkedAt < 24 * 60 * 60 * 1000) return currentState;
+    if (backoffUntil && now.getTime() < backoffUntil) return currentState;
+    if (!this.apiClient.configured) {
+      return this.saveProviderState("api-football", {
+        access_checked_at: now.toISOString(),
+        access_available: false,
+        access_reason: "API_FOOTBALL_KEY no esta configurada.",
+        last_error: "API_FOOTBALL_KEY no esta configurada.",
+        backoff_until: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+      });
+    }
+
+    const attemptedAt = now.toISOString();
+    try {
+      const result = await this.apiClient.probeSeasonAccess(config.leagueId, config.season, utcDate(now));
+      await this.recordUsage({ endpoint: "/fixtures:access-probe", trigger, success: true, responseCount: result.results });
+      await this.setApiEnabled(true, "access-probe");
+      const state = await this.saveProviderState("api-football", {
+        last_attempt_at: attemptedAt,
+        last_success_at: attemptedAt,
+        last_error: null,
+        consecutive_failures: 0,
+        backoff_until: null,
+        access_checked_at: attemptedAt,
+        access_available: true,
+        access_reason: `Acceso confirmado para league=${config.leagueId}, season=${config.season}.`
+      });
+      await insertLog("api-football.access", "ok", state.access_reason, { trigger, results: result.results });
+      return state;
+    } catch (error) {
+      const denied = ACCESS_DENIED_ERROR.test(error.message || "");
+      const retryMs = denied ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
+      await this.recordUsage({
+        endpoint: "/fixtures:access-probe",
+        trigger,
+        success: false,
+        responseStatus: error.status,
+        error: error.message,
+        payload: error.apiErrors || null
+      });
+      if (denied) await this.setApiEnabled(false, "access-probe");
+      const state = await this.saveProviderState("api-football", {
+        last_attempt_at: attemptedAt,
+        last_error: error.message,
+        consecutive_failures: Number(currentState.consecutive_failures || 0) + 1,
+        backoff_until: new Date(now.getTime() + retryMs).toISOString(),
+        access_checked_at: denied ? attemptedAt : currentState.access_checked_at || null,
+        access_available: denied ? false : currentState.access_available ?? null,
+        access_reason: error.message
+      });
+      await insertLog("api-football.access", denied ? "unavailable" : "error", error.message, {
+        trigger,
+        retryAt: state.backoff_until,
+        apiErrors: error.apiErrors || null
+      });
+      return state;
+    }
   }
 
   async maybeSyncTopScorers(processed, config, quota, trigger) {
@@ -466,50 +618,137 @@ export class FootballSyncService {
     return true;
   }
 
-  async runEspnFallback({ trigger = "scheduler" } = {}) {
-    if (!this.fallbackClient.configured) return { provider: "espn", requests: 0, processed: 0, finalChanged: 0 };
+  async runEspnFallback({ trigger = "scheduler", matches = null, config = DEFAULT_SYNC_CONFIG, providerState = {}, force = false } = {}) {
+    if (!this.fallbackClient.configured) return { provider: "espn", requests: 0, processed: 0, finalChanged: 0, reason: "not_configured" };
     const client = this.getClient();
-    const now = this.clock();
-    const windowStart = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-    const windowEnd = new Date(now.getTime() + 36 * 60 * 60 * 1000);
-    const { data: matches, error } = await client
-      .from("match_results")
-      .select("match_id,home_team,away_team,stage,match_date,status,home_goals,away_goals,source,manual_override,locked")
-      .gte("match_date", windowStart.toISOString())
-      .lte("match_date", windowEnd.toISOString());
-    assertNoError(error, "Leer partidos para respaldo ESPN");
+    if (!matches) {
+      const { data, error } = await client.from("match_results").select("*");
+      assertNoError(error, "Leer partidos para respaldo ESPN");
+      matches = data || [];
+    }
+    const decision = espnPollingDecision(matches, config, providerState, this.clock());
+    if (!decision.due && !force) {
+      return { provider: "espn", requests: 0, processed: 0, finalChanged: 0, reason: decision.reason, dueAt: decision.dueAt };
+    }
+    if (!decision.active.length) {
+      return { provider: "espn", requests: 0, processed: 0, finalChanged: 0, reason: "idle", dueAt: decision.nextWindowAt };
+    }
 
-    const dates = new Set();
-    for (const match of matches || []) dates.add(utcDate(match.match_date));
+    const attemptedAt = this.clock().toISOString();
+    const dates = new Set(decision.active.map((match) => utcDate(match.match_date)));
+    await this.saveProviderState("espn", { last_attempt_at: attemptedAt });
     const fixtures = [];
-    for (const date of dates) fixtures.push(...await this.fallbackClient.fetchDate(date));
+    try {
+      for (const date of dates) fixtures.push(...await this.fallbackClient.fetchDate(date));
+      providerState = await this.saveProviderState("espn", {
+        last_attempt_at: attemptedAt,
+        last_success_at: this.clock().toISOString(),
+        last_error: null,
+        consecutive_failures: 0,
+        backoff_until: null,
+        access_available: true,
+        access_reason: "Respaldo ESPN disponible."
+      });
+    } catch (error) {
+      const failures = Number(providerState.consecutive_failures || 0) + 1;
+      const backoffMinutes = progressiveBackoffMinutes(failures);
+      const retryAt = new Date(this.clock().getTime() + backoffMinutes * 60_000).toISOString();
+      await this.saveProviderState("espn", {
+        last_attempt_at: attemptedAt,
+        last_error: error.message,
+        consecutive_failures: failures,
+        backoff_until: retryAt,
+        access_available: false,
+        access_reason: error.message
+      });
+      await insertLog("espn.sync", "error", error.message, { trigger, failures, retryAt });
+      return { provider: "espn", requests: dates.size, processed: 0, finalChanged: 0, error: error.message, retryAt };
+    }
 
     let processed = 0;
     let finalChanged = 0;
     for (const fixture of fixtures) {
       const fixtureTime = new Date(fixture.date).getTime();
-      const match = (matches || []).find((candidate) =>
+      const match = decision.active.find((candidate) =>
         Math.abs(new Date(candidate.match_date).getTime() - fixtureTime) <= 4 * 60 * 60 * 1000 &&
         canonicalTeam(candidate.home_team) === canonicalTeam(fixture.homeTeam) &&
         canonicalTeam(candidate.away_team) === canonicalTeam(fixture.awayTeam)
       );
-      if (!match || fixture.status === "NS" || isAutomaticResultProtected(match)) continue;
-      if (!Number.isInteger(fixture.homeGoals) || !Number.isInteger(fixture.awayGoals)) continue;
-      const final = fixture.status === "FT";
-      const nextStatus = final ? "finished" : "live";
-      const differs = match.home_goals !== fixture.homeGoals || match.away_goals !== fixture.awayGoals || match.status !== nextStatus;
-      if (!differs) continue;
+      if (!match) continue;
       const updatedAt = this.clock().toISOString();
+      const nextEspnAt = decision.intervalMinutes
+        ? new Date(this.clock().getTime() + decision.intervalMinutes * 60_000).toISOString()
+        : null;
       const updates = {
-        home_goals: fixture.homeGoals,
-        away_goals: fixture.awayGoals,
-        status: nextStatus,
-        source: "espn",
-        manual_override: false,
-        last_updated: updatedAt,
+        espn_event_id: fixture.id,
+        espn_status: fixture.status,
+        espn_last_synced_at: updatedAt,
+        espn_next_sync_at: nextEspnAt,
         raw_payload: { provider: "espn", event_id: fixture.id, status: fixture.status, detail: fixture.detail }
       };
-      if (final) updates.confirmed_at = updatedAt;
+      let final = false;
+      let resultChanged = false;
+
+      if (["LIVE", "HT"].includes(fixture.status) && Number.isInteger(fixture.homeGoals) && Number.isInteger(fixture.awayGoals)) {
+        if (!isAutomaticResultProtected(match)) {
+          updates.live_home_goals = fixture.homeGoals;
+          updates.live_away_goals = fixture.awayGoals;
+          updates.live_source = "espn";
+          updates.status = "live";
+          updates.home_goals = null;
+          updates.away_goals = null;
+          updates.source = null;
+          updates.confirmed_at = null;
+          updates.qualified_team = null;
+          updates.decided_by_penalties = false;
+          updates.home_penalties = null;
+          updates.away_penalties = null;
+          resultChanged = match.live_home_goals !== fixture.homeGoals || match.live_away_goals !== fixture.awayGoals || match.status !== "live";
+        }
+      } else if (fixture.status === "FT" && Number.isInteger(fixture.homeGoals) && Number.isInteger(fixture.awayGoals)) {
+        final = true;
+        if (providerCanReplaceFinal(match, "espn")) {
+          let qualifiedTeam = null;
+          let decidedByPenalties = false;
+          if (match.stage !== "group") {
+            if (fixture.homeGoals > fixture.awayGoals) qualifiedTeam = match.home_team;
+            else if (fixture.awayGoals > fixture.homeGoals) qualifiedTeam = match.away_team;
+            else if (Number.isInteger(fixture.homePenalties) && Number.isInteger(fixture.awayPenalties) && fixture.homePenalties !== fixture.awayPenalties) {
+              qualifiedTeam = fixture.homePenalties > fixture.awayPenalties ? match.home_team : match.away_team;
+              decidedByPenalties = true;
+            } else if (fixture.winnerTeam) {
+              qualifiedTeam = canonicalTeam(fixture.winnerTeam) === canonicalTeam(match.home_team) ? match.home_team :
+                canonicalTeam(fixture.winnerTeam) === canonicalTeam(match.away_team) ? match.away_team : null;
+              decidedByPenalties = Boolean(qualifiedTeam && fixture.homeGoals === fixture.awayGoals);
+            }
+          }
+          if (match.stage === "group" || qualifiedTeam) {
+            Object.assign(updates, {
+              home_goals: fixture.homeGoals,
+              away_goals: fixture.awayGoals,
+              status: "finished",
+              source: "espn",
+              manual_override: false,
+              confirmed_at: updatedAt,
+              last_updated: updatedAt,
+              live_home_goals: fixture.homeGoals,
+              live_away_goals: fixture.awayGoals,
+              live_source: null,
+              qualified_team: qualifiedTeam,
+              decided_by_penalties: decidedByPenalties,
+              home_penalties: decidedByPenalties ? fixture.homePenalties : null,
+              away_penalties: decidedByPenalties ? fixture.awayPenalties : null
+            });
+            resultChanged = true;
+            finalChanged += 1;
+          } else {
+            updates.sync_error = "ESPN marco el partido final, pero no informo el clasificado de la eliminatoria.";
+          }
+        } else if (match.status === "finished" && (match.home_goals !== fixture.homeGoals || match.away_goals !== fixture.awayGoals)) {
+          updates.sync_error = "ESPN difiere del resultado final confirmado; se conserva el ultimo resultado valido.";
+        }
+      }
+
       const { data: row, error: updateError } = await client
         .from("match_results")
         .update(updates)
@@ -517,8 +756,8 @@ export class FootballSyncService {
         .select("*")
         .single();
       assertNoError(updateError, `Actualizar ${match.match_id} desde ESPN`);
+      if (!resultChanged) continue;
       processed += 1;
-      if (final) finalChanged += 1;
       this.io?.emit("match:updated", {
         at: updatedAt,
         matchId: match.match_id,
@@ -528,11 +767,15 @@ export class FootballSyncService {
       });
     }
     if (finalChanged) await recalculateAllScores();
-    if (processed) {
-      this.io?.emit("scores:updated", { at: this.clock().toISOString(), source: "espn" });
-      await insertLog("espn.sync", "ok", `${processed} partido(s) actualizados desde ESPN.`, { trigger, processed, finalChanged });
-    }
-    return { provider: "espn", requests: dates.size, processed, finalChanged };
+    if (processed) this.io?.emit("scores:updated", { at: this.clock().toISOString(), source: "espn" });
+    await insertLog("espn.sync", "ok", `${processed} partido(s) actualizados desde ESPN.`, {
+      trigger,
+      requests: dates.size,
+      processed,
+      finalChanged,
+      intervalMinutes: decision.intervalMinutes
+    });
+    return { provider: "espn", requests: dates.size, processed, finalChanged, lastSuccessAt: providerState.last_success_at };
   }
 
   async runOnce({ trigger = "scheduler", forceMatchIds = [] } = {}) {
@@ -541,16 +784,35 @@ export class FootballSyncService {
     this.lastError = null;
     let fallbackResult = null;
     try {
-      const config = await this.loadConfig();
-      fallbackResult = await this.runEspnFallback({ trigger });
-      this.lastRunAt = this.clock().toISOString();
-      if (this.migrationRequired) return { ok: true, migrationRequired: true, ...fallbackResult };
-      if (!this.apiClient.configured) return { ok: true, apiFootballSkipped: "api_key_missing", ...fallbackResult };
-      if (!config.enabled && !forceMatchIds.length) return { ok: true, apiFootballSkipped: "disabled", ...fallbackResult };
-
+      let config = await this.loadConfig();
+      const providerStates = await this.loadProviderStates();
+      if (this.migrationRequired) return { ok: false, skipped: "migration_required" };
       const client = this.getClient();
       const { data: matches, error } = await client.from("match_results").select("*");
       assertNoError(error, "Leer partidos para sincronizar");
+
+      const apiState = await this.maybeProbeApiAccess(config, providerStates.get("api-football") || {}, trigger);
+      config = { ...config, enabled: apiState.access_available === true };
+      const activity = providerActivity(matches || [], config, this.clock());
+      fallbackResult = await this.runEspnFallback({
+        trigger,
+        matches: matches || [],
+        config,
+        providerState: providerStates.get("espn") || {}
+      });
+      this.lastRunAt = this.clock().toISOString();
+      if (!activity.shouldPoll && !forceMatchIds.length) {
+        return { ok: true, reason: "idle_no_live_or_upcoming", nextWindowAt: activity.nextWindowAt, espn: fallbackResult };
+      }
+      if (!this.apiClient.configured) return { ok: true, apiFootballSkipped: "api_key_missing", espn: fallbackResult };
+      if (!config.enabled && !forceMatchIds.length) {
+        return { ok: true, apiFootballSkipped: "season_unavailable", apiAccessReason: apiState.access_reason, espn: fallbackResult };
+      }
+      const apiBackoffUntil = apiState.backoff_until ? new Date(apiState.backoff_until).getTime() : 0;
+      if (apiBackoffUntil > this.clock().getTime() && !forceMatchIds.length) {
+        return { ok: true, apiFootballSkipped: "provider_backoff", apiBackoffUntil: apiState.backoff_until, espn: fallbackResult };
+      }
+
       const used = await this.usageToday();
       let selection = selectSyncBatches(matches || [], config, used, this.clock());
       if (forceMatchIds.length) {
@@ -564,7 +826,7 @@ export class FootballSyncService {
       }
       if (!selection.batches.length) {
         this.lastRunAt = this.clock().toISOString();
-        return { ok: true, requests: 0, reason: "no_due_matches", quota: selection.quota };
+        return { ok: true, requests: 0, reason: "no_due_matches", quota: selection.quota, espn: fallbackResult };
       }
 
       const processed = [];
@@ -582,6 +844,14 @@ export class FootballSyncService {
             trigger,
             success: true,
             responseCount: response.results
+          });
+          await this.saveProviderState("api-football", {
+            last_attempt_at: this.clock().toISOString(),
+            last_success_at: this.clock().toISOString(),
+            last_error: null,
+            consecutive_failures: 0,
+            backoff_until: null,
+            access_available: true
           });
         } catch (apiError) {
           requests += 1;
@@ -602,6 +872,17 @@ export class FootballSyncService {
             .update({ last_synced_at: this.clock().toISOString(), next_sync_at: retryAt, sync_error: apiError.message })
             .in("match_id", batch.map((match) => match.match_id));
           assertNoError(backoffError, "Programar reintento de API-Football");
+          const accessDenied = ACCESS_DENIED_ERROR.test(apiError.message || "");
+          if (accessDenied) await this.setApiEnabled(false, "runtime-access-error");
+          await this.saveProviderState("api-football", {
+            last_attempt_at: this.clock().toISOString(),
+            last_error: apiError.message,
+            consecutive_failures: Number(apiState.consecutive_failures || 0) + 1,
+            backoff_until: retryAt,
+            access_checked_at: accessDenied ? this.clock().toISOString() : apiState.access_checked_at || null,
+            access_available: accessDenied ? false : apiState.access_available ?? null,
+            access_reason: accessDenied ? apiError.message : apiState.access_reason || null
+          });
           throw apiError;
         }
         const matchByFixture = new Map(batch.map((match) => [Number(match.api_fixture_id), match]));
@@ -627,9 +908,17 @@ export class FootballSyncService {
         }
       }
 
-      if (processed.some((item) => item.finalChanged)) {
+      const finalScoresChanged = processed.some((item) => item.finalChanged);
+      const liveScoresChanged = processed.some((item) => item.liveChanged);
+      if (finalScoresChanged) {
         await recalculateAllScores();
-        this.io?.emit("scores:updated", { at: this.clock().toISOString(), source: "api-football" });
+      }
+      if (finalScoresChanged || liveScoresChanged) {
+        this.io?.emit("scores:updated", {
+          at: this.clock().toISOString(),
+          source: "api-football",
+          provisional: liveScoresChanged && !finalScoresChanged
+        });
       }
       const scorersUpdated = await this.maybeSyncTopScorers(processed, config, selection.quota, trigger);
       this.lastRunAt = this.clock().toISOString();
@@ -641,7 +930,7 @@ export class FootballSyncService {
         scorersUpdated
       });
       this.io?.emit("live-sync:status", await this.publicStatus());
-      return { ok: true, requests, processed: processed.length, quota: selection.quota, scorersUpdated };
+      return { ok: true, requests, processed: processed.length, quota: selection.quota, scorersUpdated, espn: fallbackResult };
     } catch (error) {
       this.lastError = error.message;
       this.lastRunAt = this.clock().toISOString();

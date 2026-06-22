@@ -32,7 +32,10 @@ test("normaliza un resultado final de ESPN", async () => {
     homeTeam: "Belgium",
     awayTeam: "Iran",
     homeGoals: 0,
-    awayGoals: 0
+    awayGoals: 0,
+    homePenalties: null,
+    awayPenalties: null,
+    winnerTeam: null
   });
 });
 
@@ -46,4 +49,24 @@ test("distingue un partido en vivo de uno programado", async () => {
   const rows = await client.fetchDate("2026-06-21");
   assert.equal(rows[0].status, "LIVE");
   assert.equal(rows[1].status, "NS");
+});
+
+test("mantiene separado el marcador de los penales", async () => {
+  const client = new EspnFootballClient({
+    fetchImpl: async () => response({ events: [{
+      id: "3",
+      date: "2026-07-10T20:00Z",
+      status: { type: { name: "STATUS_FULL_TIME", completed: true } },
+      competitions: [{ competitors: [
+        { homeAway: "home", score: "1", shootoutScore: "4", winner: true, team: { displayName: "Colombia" } },
+        { homeAway: "away", score: "1", shootoutScore: "3", winner: false, team: { displayName: "Brazil" } }
+      ] }]
+    }] })
+  });
+  const [row] = await client.fetchDate("2026-07-10");
+  assert.equal(row.homeGoals, 1);
+  assert.equal(row.awayGoals, 1);
+  assert.equal(row.homePenalties, 4);
+  assert.equal(row.awayPenalties, 3);
+  assert.equal(row.winnerTeam, "Colombia");
 });

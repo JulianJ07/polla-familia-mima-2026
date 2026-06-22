@@ -49,6 +49,13 @@ alter table match_results add column if not exists next_sync_at timestamptz;
 alter table match_results add column if not exists api_final_at timestamptz;
 alter table match_results add column if not exists final_confirmation_count int not null default 0;
 alter table match_results add column if not exists sync_error text;
+alter table match_results add column if not exists espn_event_id text;
+alter table match_results add column if not exists espn_status text;
+alter table match_results add column if not exists espn_last_synced_at timestamptz;
+alter table match_results add column if not exists espn_next_sync_at timestamptz;
+alter table match_results add column if not exists live_source text;
+alter table match_results add column if not exists home_penalties int;
+alter table match_results add column if not exists away_penalties int;
 
 create table if not exists predictions (
   id serial primary key,
@@ -186,6 +193,19 @@ create table if not exists match_result_audit (
   created_at timestamptz not null default now()
 );
 
+create table if not exists football_provider_state (
+  provider text primary key check (provider in ('api-football', 'espn')),
+  last_attempt_at timestamptz,
+  last_success_at timestamptz,
+  last_error text,
+  consecutive_failures int not null default 0,
+  backoff_until timestamptz,
+  access_checked_at timestamptz,
+  access_available boolean,
+  access_reason text,
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_predictions_participant on predictions(participant_id);
 create index if not exists idx_predictions_match on predictions(match_id);
 create index if not exists idx_predictions_stage on predictions(stage);
@@ -199,10 +219,12 @@ create index if not exists idx_sync_logs_created_at on sync_logs(created_at desc
 create unique index if not exists idx_match_results_api_fixture on match_results(api_fixture_id) where api_fixture_id is not null;
 create index if not exists idx_match_results_next_sync on match_results(next_sync_at) where api_fixture_id is not null;
 create index if not exists idx_match_results_api_status on match_results(api_status, stage);
+create index if not exists idx_match_results_espn_status on match_results(espn_status, stage);
 create index if not exists idx_football_api_usage_date on football_api_usage(request_date, requested_at desc);
 create index if not exists idx_match_result_audit_match on match_result_audit(match_id, created_at desc);
 
 insert into football_sync_config (id) values (1) on conflict (id) do nothing;
+insert into football_provider_state (provider) values ('api-football'), ('espn') on conflict (provider) do nothing;
 
 insert into award_results (key, winner_name, points, is_confirmed)
 values

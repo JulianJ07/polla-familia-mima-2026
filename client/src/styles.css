@@ -590,6 +590,29 @@ main.pt-16 > section.relative h2.font-display {
   background: #d99a4e;
 }
 
+.leaderboard-points-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 0.9;
+}
+
+.live-points-chip {
+  margin-top: 5px;
+  border: 1px solid rgb(52 211 153 / 0.42);
+  border-radius: 999px;
+  background: rgb(16 185 129 / 0.14);
+  padding: 4px 7px;
+  color: #6ee7b7;
+  font-family: Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .leaderboard-mobile-stats {
   display: none;
 }
@@ -2937,6 +2960,10 @@ main.pt-16 > section.relative h2.font-display {
 
   .leaderboard-stat-col {
     display: none;
+  }
+
+  .leaderboard-points-cell {
+    align-items: flex-end;
   }
 
   .leaderboard-mobile-stats {

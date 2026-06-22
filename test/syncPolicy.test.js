@@ -7,7 +7,7 @@ import {
   pollingIntervalMinutes,
   selectSyncBatches
 } from "../server/services/syncPolicy.js";
-import { isAutomaticResultProtected } from "../server/services/footballSync.js";
+import { isAutomaticResultProtected, providerCanReplaceFinal } from "../server/services/footballSync.js";
 
 const config = {
   enabled: true,
@@ -120,4 +120,11 @@ test("un resultado manual o bloqueado prevalece sobre la API", () => {
   assert.equal(isAutomaticResultProtected({ locked: true, manual_override: false, source: "api-football" }), true);
   assert.equal(isAutomaticResultProtected({ locked: false, manual_override: true, source: "admin" }), true);
   assert.equal(isAutomaticResultProtected({ locked: false, manual_override: false, source: "api-football" }), false);
+});
+
+test("respeta la jerarquia de fuentes para resultados finales", () => {
+  assert.equal(providerCanReplaceFinal({ status: "finished", source: "admin", manual_override: true }, "api-football"), false);
+  assert.equal(providerCanReplaceFinal({ status: "finished", source: "espn", manual_override: false }, "espn"), false);
+  assert.equal(providerCanReplaceFinal({ status: "finished", source: "espn", manual_override: false }, "api-football"), true);
+  assert.equal(providerCanReplaceFinal({ status: "scheduled", source: "worldcup26", manual_override: false }, "espn"), true);
 });

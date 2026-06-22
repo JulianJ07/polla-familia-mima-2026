@@ -77,6 +77,10 @@ export class ApiFootballClient {
     return this.request("/fixtures", { league: leagueId, season });
   }
 
+  probeSeasonAccess(leagueId, season, date) {
+    return this.request("/fixtures", { league: leagueId, season, date });
+  }
+
   fetchTopScorers(leagueId, season) {
     return this.request("/players/topscorers", { league: leagueId, season });
   }
