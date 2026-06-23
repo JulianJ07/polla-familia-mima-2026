@@ -7,7 +7,7 @@ import {
   pollingIntervalMinutes,
   selectSyncBatches
 } from "../server/services/syncPolicy.js";
-import { isAutomaticResultProtected, providerCanReplaceFinal } from "../server/services/footballSync.js";
+import { espnScoreboardDatesForMatch, isAutomaticResultProtected, providerCanReplaceFinal } from "../server/services/footballSync.js";
 
 const config = {
   enabled: true,
@@ -127,4 +127,13 @@ test("respeta la jerarquia de fuentes para resultados finales", () => {
   assert.equal(providerCanReplaceFinal({ status: "finished", source: "espn", manual_override: false }, "espn"), false);
   assert.equal(providerCanReplaceFinal({ status: "finished", source: "espn", manual_override: false }, "api-football"), true);
   assert.equal(providerCanReplaceFinal({ status: "scheduled", source: "worldcup26", manual_override: false }, "espn"), true);
+});
+
+test("consulta dias adyacentes para el tablero de ESPN", () => {
+  assert.deepEqual(espnScoreboardDatesForMatch("2026-06-23T00:00:00.000Z"), [
+    "2026-06-22",
+    "2026-06-23",
+    "2026-06-24"
+  ]);
+  assert.deepEqual(espnScoreboardDatesForMatch(null), []);
 });

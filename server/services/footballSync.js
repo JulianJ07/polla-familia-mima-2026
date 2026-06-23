@@ -85,6 +85,15 @@ function utcDate(value = new Date()) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+export function espnScoreboardDatesForMatch(matchDate) {
+  const base = matchDate ? new Date(matchDate).getTime() : Number.NaN;
+  if (!Number.isFinite(base)) return [];
+  const oneDay = 24 * 60 * 60 * 1000;
+  return [-oneDay, 0, oneDay]
+    .map((offset) => utcDate(new Date(base + offset)))
+    .filter((date, index, all) => all.indexOf(date) === index);
+}
+
 function sanitizedFixture(fixture) {
   return {
     fixture: {
@@ -635,7 +644,7 @@ export class FootballSyncService {
     }
 
     const attemptedAt = this.clock().toISOString();
-    const dates = new Set(decision.active.map((match) => utcDate(match.match_date)));
+    const dates = new Set(decision.active.flatMap((match) => espnScoreboardDatesForMatch(match.match_date)));
     await this.saveProviderState("espn", { last_attempt_at: attemptedAt });
     const fixtures = [];
     try {
