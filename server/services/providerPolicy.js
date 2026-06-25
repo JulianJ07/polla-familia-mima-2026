@@ -2,6 +2,7 @@ import { ACTIVE_API_STATUSES, PRIORITIES, determinePriority, pollingIntervalMinu
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const EXPECTED_MATCH_WINDOW_MS = 4 * 60 * 60 * 1000;
+const MISSED_RESULT_WINDOW_MS = 30 * 60 * 60 * 1000;
 
 function timestamp(value) {
   const result = value ? new Date(value).getTime() : Number.NaN;
@@ -25,11 +26,15 @@ export function providerActivity(matches, config, nowInput = new Date()) {
     const start = timestamp(match.match_date);
     return start != null && start <= now && now <= start + EXPECTED_MATCH_WINDOW_MS;
   });
+  const missedResults = eligible.filter((match) => {
+    const start = timestamp(match.match_date);
+    return start != null && now > start + EXPECTED_MATCH_WINDOW_MS && now <= start + MISSED_RESULT_WINDOW_MS;
+  });
   const upcoming = eligible.filter((match) => {
     const start = timestamp(match.match_date);
     return start != null && start >= now && start <= now + TWO_HOURS_MS;
   });
-  const active = [...new Map([...live, ...started, ...upcoming].map((match) => [match.match_id, match])).values()]
+  const active = [...new Map([...live, ...started, ...missedResults, ...upcoming].map((match) => [match.match_id, match])).values()]
     .sort((a, b) => PRIORITIES.indexOf(a.priority) - PRIORITIES.indexOf(b.priority));
   const nextMatchAt = eligible
     .map((match) => timestamp(match.match_date))
@@ -39,6 +44,7 @@ export function providerActivity(matches, config, nowInput = new Date()) {
     shouldPoll: active.length > 0,
     live,
     started,
+    missedResults,
     upcoming,
     active,
     highestPriority: active[0]?.priority || null,
@@ -78,14 +84,15 @@ export function espnPollingDecision(matches, config, providerState = {}, nowInpu
     match.api_elapsed,
     "normal"
   ));
+  const missedResultIntervals = activity.missedResults.map(() => 60);
   const upcomingIntervals = activity.upcoming.map((match) => upcomingIntervalMinutes(match, now));
-  const intervalMinutes = Math.min(...liveIntervals, ...startedIntervals, ...upcomingIntervals);
+  const intervalMinutes = Math.min(...liveIntervals, ...startedIntervals, ...missedResultIntervals, ...upcomingIntervals);
   const lastAttempt = timestamp(providerState.last_attempt_at ?? providerState.lastAttemptAt);
   const dueAt = lastAttempt ? lastAttempt + intervalMinutes * 60_000 : now;
   return {
     ...activity,
     due: now >= dueAt,
-    reason: activity.live.length ? "live" : activity.started.length ? "started" : "upcoming",
+    reason: activity.live.length ? "live" : activity.started.length ? "started" : activity.missedResults.length ? "missed_result_check" : "upcoming",
     intervalMinutes,
     dueAt: new Date(dueAt).toISOString()
   };
