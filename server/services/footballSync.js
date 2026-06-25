@@ -43,6 +43,7 @@ const TEAM_ALIASES = new Map(Object.entries({
   switzerland: "suiza",
   qatar: "catar",
   "bosnia and herzegovina": "bosnia",
+  "bosnia herzegovina": "bosnia",
   uzbekistan: "uzbekistan",
   mexico: "mexico",
   canada: "canada",
@@ -53,6 +54,7 @@ const TEAM_ALIASES = new Map(Object.entries({
   austria: "austria",
   ghana: "ghana",
   senegal: "senegal",
+  "south africa": "sudafrica",
   uruguay: "uruguay",
   paraguay: "paraguay",
   australia: "australia",
@@ -76,7 +78,7 @@ const TEAM_ALIASES = new Map(Object.entries({
   curacao: "curazao"
 }));
 
-function canonicalTeam(value) {
+export function canonicalTeam(value) {
   const normalized = normalizeTeamName(value);
   return TEAM_ALIASES.get(normalized) || normalized;
 }

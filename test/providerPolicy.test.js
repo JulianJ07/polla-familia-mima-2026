@@ -62,6 +62,14 @@ test("consulta un partido que ya debio comenzar aunque aun figure programado", (
   assert.equal(decision.due, true);
 });
 
+test("revisa partidos recientes que quedaron sin resultado", () => {
+  const now = new Date("2026-06-22T03:30:00.000Z");
+  const decision = espnPollingDecision([match()], config, {}, now);
+  assert.equal(decision.reason, "missed_result_check");
+  assert.equal(decision.intervalMinutes, 60);
+  assert.equal(decision.due, true);
+});
+
 test("aplica backoff exponencial con tope de una hora", () => {
   assert.equal(progressiveBackoffMinutes(1), 2);
   assert.equal(progressiveBackoffMinutes(4), 16);

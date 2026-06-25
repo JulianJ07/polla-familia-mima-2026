@@ -7,7 +7,7 @@ import {
   pollingIntervalMinutes,
   selectSyncBatches
 } from "../server/services/syncPolicy.js";
-import { espnScoreboardDatesForMatch, isAutomaticResultProtected, providerCanReplaceFinal } from "../server/services/footballSync.js";
+import { canonicalTeam, espnScoreboardDatesForMatch, isAutomaticResultProtected, providerCanReplaceFinal } from "../server/services/footballSync.js";
 
 const config = {
   enabled: true,
@@ -136,4 +136,10 @@ test("consulta dias adyacentes para el tablero de ESPN", () => {
     "2026-06-24"
   ]);
   assert.deepEqual(espnScoreboardDatesForMatch(null), []);
+});
+
+test("normaliza nombres de ESPN a los equipos de la polla", () => {
+  assert.equal(canonicalTeam("Bosnia-Herzegovina"), canonicalTeam("Bosnia"));
+  assert.equal(canonicalTeam("South Africa"), canonicalTeam("Sudáfrica"));
+  assert.equal(canonicalTeam("South Korea"), canonicalTeam("Corea"));
 });
