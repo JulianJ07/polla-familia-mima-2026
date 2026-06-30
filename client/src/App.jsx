@@ -8,6 +8,7 @@ import {
   Crown,
   Goal,
   Lock,
+  Maximize2,
   Medal,
   Minus,
   Plus,
@@ -87,17 +88,20 @@ function normalizeSearchText(value) {
 
 const TEAM_FLAG_CODES = {
   mexico: "MX", sudafrica: "ZA", corea: "KR", chequia: "CZ", canada: "CA", bosnia: "BA", catar: "QA", suiza: "CH",
-  brasil: "BR", marruecos: "MA", haiti: "HT", escocia: "GB", usa: "US", paraguay: "PY", australia: "AU", turquia: "TR",
+  brasil: "BR", marruecos: "MA", haiti: "HT", escocia: "GB-SCT", usa: "US", paraguay: "PY", australia: "AU", turquia: "TR",
   alemania: "DE", curazao: "CW", "costa marfil": "CI", ecuador: "EC", holanda: "NL", japon: "JP", suecia: "SE", tunez: "TN",
   belgica: "BE", egipto: "EG", iran: "IR", "n zelanda": "NZ", espana: "ES", "cabo verde": "CV", "a saudita": "SA", uruguay: "UY",
   francia: "FR", senegal: "SN", irak: "IQ", noruega: "NO", argentina: "AR", argelia: "DZ", austria: "AT", jordania: "JO",
-  portugal: "PT", "rd congo": "CD", uzbekistan: "UZ", colombia: "CO", inglaterra: "GB", croacia: "HR", ghana: "GH", panama: "PA"
+  portugal: "PT", "rd congo": "CD", uzbekistan: "UZ", colombia: "CO", inglaterra: "GB-ENG", croacia: "HR", ghana: "GH", panama: "PA"
 };
 
-function teamFlag(team) {
-  const code = TEAM_FLAG_CODES[normalizeSearchText(team)];
-  if (!code) return "";
-  return [...code].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join("");
+function teamFlagCode(team) {
+  return TEAM_FLAG_CODES[normalizeSearchText(team)] || "";
+}
+
+function teamFlagUrl(team) {
+  const code = teamFlagCode(team);
+  return code ? `https://flagcdn.com/w40/${code.toLowerCase()}.png` : "";
 }
 
 function formatPoints(value) {
@@ -1169,9 +1173,12 @@ function BracketMatchCard({ match, compact = false }) {
 
   function teamRow(team, score, side) {
     const qualified = match?.qualified_team && normalizeSearchText(match.qualified_team) === normalizeSearchText(team);
+    const flagUrl = teamFlagUrl(team);
     return (
       <div className={cx("bracket-team-row", qualified && "qualified")} title={team || ""}>
-        <span className="bracket-flag" aria-hidden="true">{teamFlag(team) || "-"}</span>
+        <span className="bracket-flag" aria-hidden="true">
+          {flagUrl ? <img src={flagUrl} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span>-</span>}
+        </span>
         <span className="bracket-team-name">{team || (side === "home" ? "Local" : "Visitante")}</span>
         <span className="bracket-team-score">{hasScore ? score : "-"}</span>
       </div>
@@ -1205,8 +1212,43 @@ function BracketColumn({ label, matches, side, stage }) {
   );
 }
 
+function BracketBoard({ columns, finalMatch, thirdMatch, width, height, zoom, complete = false }) {
+  return (
+    <div
+      className={cx("tournament-bracket", complete && "tournament-bracket-complete")}
+      style={{ width, minHeight: height, transform: `scale(${zoom})`, "--bracket-zoom": zoom }}
+    >
+      {columns.slice(0, 4).map((column) => (
+        <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
+      ))}
+      <div className="tournament-center">
+        <h3>Mundial 2026</h3>
+        <div className="final-pedestal">
+          <div className="trophy-core" aria-hidden="true">
+            <Trophy size={86} />
+            <span>FINAL</span>
+          </div>
+          <div>
+            <h4>Final</h4>
+            <BracketMatchCard match={finalMatch} compact />
+          </div>
+          <div>
+            <h4>3er puesto</h4>
+            <BracketMatchCard match={thirdMatch} compact />
+          </div>
+        </div>
+      </div>
+      {columns.slice(4).map((column) => (
+        <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
+      ))}
+    </div>
+  );
+}
+
 function BracketView({ bracket }) {
-  const [zoom, setZoom] = useState(0.82);
+  const [zoom, setZoom] = useState(0.76);
+  const [showComplete, setShowComplete] = useState(false);
+  const [completeZoom, setCompleteZoom] = useState(0.46);
   const r32 = bracket.r32 || [];
   const r16 = bracket.r16 || [];
   const qf = bracket.qf || [];
@@ -1214,8 +1256,8 @@ function BracketView({ bracket }) {
   const finalMatch = bracket.final?.[0];
   const thirdMatch = bracket.third?.[0];
   const finishedR32 = r32.filter((match) => match.status === "finished").length;
-  const width = 2020;
-  const height = 1240;
+  const width = 2160;
+  const height = 1360;
 
   const columns = [
     { label: "16avos", matches: r32.slice(0, 8), side: "left", stage: "r32" },
@@ -1232,6 +1274,10 @@ function BracketView({ bracket }) {
     setZoom((current) => Math.min(1.2, Math.max(0.58, Number((current + delta).toFixed(2)))));
   }
 
+  function nudgeCompleteZoom(delta) {
+    setCompleteZoom((current) => Math.min(1, Math.max(0.34, Number((current + delta).toFixed(2)))));
+  }
+
   return (
     <section className="page-section">
       <div className="section-heading">
@@ -1240,46 +1286,66 @@ function BracketView({ bracket }) {
           <h2 className="page-title">Camino a la copa</h2>
           <p className="section-subtitle">{finishedR32}/16 partidos de 16avos finalizados</p>
         </div>
-        <div className="zoom-controls">
-          <button type="button" className="icon-button" onClick={() => nudgeZoom(-0.08)} title="Alejar" aria-label="Alejar">
-            <Minus size={16} />
+        <div className="bracket-heading-actions">
+          <button type="button" className="secondary-button bracket-full-button" onClick={() => setShowComplete(true)}>
+            <Maximize2 size={16} />
+            Ver llaves completas
           </button>
-          <span>{Math.round(zoom * 100)}%</span>
-          <button type="button" className="icon-button" onClick={() => nudgeZoom(0.08)} title="Acercar" aria-label="Acercar">
-            <Plus size={16} />
-          </button>
+          <div className="zoom-controls">
+            <button type="button" className="icon-button" onClick={() => nudgeZoom(-0.08)} title="Alejar" aria-label="Alejar">
+              <Minus size={16} />
+            </button>
+            <span>{Math.round(zoom * 100)}%</span>
+            <button type="button" className="icon-button" onClick={() => nudgeZoom(0.08)} title="Acercar" aria-label="Acercar">
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="bracket-viewport">
         <div className="bracket-zoom-plane" style={{ width: width * zoom, minHeight: height * zoom }}>
-          <div className="tournament-bracket" style={{ width, minHeight: height, transform: `scale(${zoom})` }}>
-            {columns.slice(0, 4).map((column) => (
-              <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
-            ))}
-            <div className="tournament-center">
-              <h3>Mundial 2026</h3>
-              <div className="final-pedestal">
-                <div className="trophy-core" aria-hidden="true">
-                  <Trophy size={86} />
-                  <span>FINAL</span>
-                </div>
-                <div>
-                  <h4>Final</h4>
-                  <BracketMatchCard match={finalMatch} compact />
-                </div>
-                <div>
-                  <h4>3er puesto</h4>
-                  <BracketMatchCard match={thirdMatch} compact />
-                </div>
-              </div>
-            </div>
-            {columns.slice(4).map((column) => (
-              <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
-            ))}
-          </div>
+          <BracketBoard columns={columns} finalMatch={finalMatch} thirdMatch={thirdMatch} width={width} height={height} zoom={zoom} />
         </div>
       </div>
+
+      {showComplete && (
+        <div className="modal-backdrop bracket-fullscreen-backdrop" role="presentation" onMouseDown={() => setShowComplete(false)}>
+          <motion.div
+            className="bracket-fullscreen-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Llaves completas"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="bracket-fullscreen-header">
+              <div>
+                <p className="eyebrow">Llaves completas</p>
+                <h3>Mundial 2026</h3>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowComplete(false)} title="Cerrar" aria-label="Cerrar">
+                <XCircle size={18} />
+              </button>
+            </div>
+            <div className="bracket-fullscreen-tools">
+              <button type="button" className="icon-button" onClick={() => nudgeCompleteZoom(-0.06)} title="Alejar" aria-label="Alejar llaves completas">
+                <Minus size={16} />
+              </button>
+              <span>{Math.round(completeZoom * 100)}%</span>
+              <button type="button" className="icon-button" onClick={() => nudgeCompleteZoom(0.06)} title="Acercar" aria-label="Acercar llaves completas">
+                <Plus size={16} />
+              </button>
+            </div>
+            <div className="bracket-complete-viewport">
+              <div className="bracket-zoom-plane bracket-complete-plane" style={{ width: width * completeZoom, minHeight: height * completeZoom }}>
+                <BracketBoard columns={columns} finalMatch={finalMatch} thirdMatch={thirdMatch} width={width} height={height} zoom={completeZoom} complete />
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </section>
   );
 }
