@@ -104,6 +104,17 @@ function teamFlagUrl(team) {
   return code ? `https://flagcdn.com/w40/${code.toLowerCase()}.png` : "";
 }
 
+function TeamFlag({ team, className = "" }) {
+  const flagUrl = teamFlagUrl(team);
+  const fallback = (teamFlagCode(team) || "--").slice(0, 2);
+
+  return (
+    <span className={cx("team-flag", className)} aria-hidden="true">
+      {flagUrl ? <img src={flagUrl} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className="team-flag-fallback">{fallback}</span>}
+    </span>
+  );
+}
+
 function formatPoints(value) {
   const number = Number(value || 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(1);
@@ -786,6 +797,41 @@ function predictionToBracketMatch(item) {
   };
 }
 
+const BRACKET_VISUAL_ORDER = {
+  r32Left: ["M3", "M4", "M1", "M10", "M9", "M2", "M11", "M12"],
+  r16Left: ["O1", "O2", "O3", "O4"],
+  qfLeft: ["Q1", "Q2"],
+  sfLeft: ["S1"],
+  sfRight: ["S2"],
+  qfRight: ["Q3", "Q4"],
+  r16Right: ["O5", "O6", "O7", "O8"],
+  r32Right: ["M6", "M5", "M8", "M7", "M14", "M16", "M15", "M13"]
+};
+
+function orderMatchesById(matches = [], order = []) {
+  const byId = new Map(matches.map((match) => [String(match.match_id || ""), match]));
+  const ordered = order.map((id) => byId.get(id)).filter(Boolean);
+  return ordered.length || order.length ? ordered : matches;
+}
+
+function buildBracketColumns(byStage) {
+  const r32 = byStage.r32 || [];
+  const r16 = byStage.r16 || [];
+  const qf = byStage.qf || [];
+  const sf = byStage.sf || [];
+
+  return [
+    { label: "16avos", matches: orderMatchesById(r32, BRACKET_VISUAL_ORDER.r32Left), side: "left", stage: "r32" },
+    { label: "8avos", matches: orderMatchesById(r16, BRACKET_VISUAL_ORDER.r16Left), side: "left", stage: "r16" },
+    { label: "4tos", matches: orderMatchesById(qf, BRACKET_VISUAL_ORDER.qfLeft), side: "left", stage: "qf" },
+    { label: "Semis", matches: orderMatchesById(sf, BRACKET_VISUAL_ORDER.sfLeft), side: "left", stage: "sf" },
+    { label: "Semis", matches: orderMatchesById(sf, BRACKET_VISUAL_ORDER.sfRight), side: "right", stage: "sf" },
+    { label: "4tos", matches: orderMatchesById(qf, BRACKET_VISUAL_ORDER.qfRight), side: "right", stage: "qf" },
+    { label: "8avos", matches: orderMatchesById(r16, BRACKET_VISUAL_ORDER.r16Right), side: "right", stage: "r16" },
+    { label: "16avos", matches: orderMatchesById(r32, BRACKET_VISUAL_ORDER.r32Right), side: "right", stage: "r32" }
+  ];
+}
+
 function ParticipantBracketPreview({ predictions }) {
   const byStage = predictions
     .filter((item) => ["r32", "r16", "qf", "sf", "third", "final"].includes(item.stage))
@@ -806,16 +852,7 @@ function ParticipantBracketPreview({ predictions }) {
     );
   }
 
-  const columns = [
-    { label: "16avos", matches: (byStage.r32 || []).slice(0, 8), side: "left", stage: "r32" },
-    { label: "8avos", matches: (byStage.r16 || []).slice(0, 4), side: "left", stage: "r16" },
-    { label: "4tos", matches: (byStage.qf || []).slice(0, 2), side: "left", stage: "qf" },
-    { label: "Semis", matches: (byStage.sf || []).slice(0, 1), side: "left", stage: "sf" },
-    { label: "Semis", matches: (byStage.sf || []).slice(1, 2), side: "right", stage: "sf" },
-    { label: "4tos", matches: (byStage.qf || []).slice(2, 4), side: "right", stage: "qf" },
-    { label: "8avos", matches: (byStage.r16 || []).slice(4, 8), side: "right", stage: "r16" },
-    { label: "16avos", matches: (byStage.r32 || []).slice(8, 16), side: "right", stage: "r32" }
-  ];
+  const columns = buildBracketColumns(byStage);
 
   return (
     <div className="prediction-section">
@@ -1173,12 +1210,9 @@ function BracketMatchCard({ match, compact = false }) {
 
   function teamRow(team, score, side) {
     const qualified = match?.qualified_team && normalizeSearchText(match.qualified_team) === normalizeSearchText(team);
-    const flagUrl = teamFlagUrl(team);
     return (
       <div className={cx("bracket-team-row", qualified && "qualified")} title={team || ""}>
-        <span className="bracket-flag" aria-hidden="true">
-          {flagUrl ? <img src={flagUrl} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span>-</span>}
-        </span>
+        <TeamFlag team={team} className="bracket-flag" />
         <span className="bracket-team-name">{team || (side === "home" ? "Local" : "Visitante")}</span>
         <span className="bracket-team-score">{hasScore ? score : "-"}</span>
       </div>
@@ -1186,7 +1220,7 @@ function BracketMatchCard({ match, compact = false }) {
   }
 
   return (
-    <article className={cx("bracket-match", compact && "bracket-match-center", `match-${match?.status || "scheduled"}`)}>
+    <article data-match-id={match?.match_id || undefined} className={cx("bracket-match", compact && "bracket-match-center", `match-${match?.status || "scheduled"}`)}>
       <p className="bracket-date">{formatBracketDate(match?.match_date)}</p>
       <div className="bracket-team-list">
         {teamRow(match?.home_team, homeScore, "home")}
@@ -1259,16 +1293,7 @@ function BracketView({ bracket }) {
   const width = 2160;
   const height = 1360;
 
-  const columns = [
-    { label: "16avos", matches: r32.slice(0, 8), side: "left", stage: "r32" },
-    { label: "8avos", matches: r16.slice(0, 4), side: "left", stage: "r16" },
-    { label: "4tos", matches: qf.slice(0, 2), side: "left", stage: "qf" },
-    { label: "Semis", matches: sf.slice(0, 1), side: "left", stage: "sf" },
-    { label: "Semis", matches: sf.slice(1, 2), side: "right", stage: "sf" },
-    { label: "4tos", matches: qf.slice(2, 4), side: "right", stage: "qf" },
-    { label: "8avos", matches: r16.slice(4, 8), side: "right", stage: "r16" },
-    { label: "16avos", matches: r32.slice(8, 16), side: "right", stage: "r32" }
-  ];
+  const columns = buildBracketColumns({ r32, r16, qf, sf });
 
   function nudgeZoom(delta) {
     setZoom((current) => Math.min(1.2, Math.max(0.58, Number((current + delta).toFixed(2)))));
@@ -1433,7 +1458,7 @@ function StandingsView({ standings, onOpenMatch }) {
           {(selectedGroup.rows || []).map((row) => (
             <div className={cx("group-table-row", `qualification-${row.qualification || "out"}`)} role="row" key={`${selectedGroup.groupCode}-${row.team}`}>
               <span className="group-position" data-label="Posicion">#{row.position}{row.tied ? "=" : ""}</span>
-              <strong className="group-team" data-label="Seleccion"><span className="team-flag">{teamFlag(row.team)}</span>{row.team}</strong>
+              <strong className="group-team" data-label="Seleccion"><TeamFlag team={row.team} />{row.team}</strong>
               <span data-label="PJ">{row.played}</span>
               <span data-label="PG">{row.wins}</span>
               <span data-label="PE">{row.draws}</span>
@@ -1461,7 +1486,13 @@ function StandingsView({ standings, onOpenMatch }) {
           <div className="group-matches-list">
             {(selectedGroup.matches || []).map((match) => (
               <button className={cx("group-match-row", match.live && "group-match-live", match.special && "group-match-special")} type="button" key={match.matchId} onClick={() => onOpenMatch?.(match.matchId)}>
-                <span className="group-match-teams">{teamFlag(match.homeTeam)} {match.homeTeam} <b>vs</b> {match.awayTeam} {teamFlag(match.awayTeam)}</span>
+                <span className="group-match-teams">
+                  <TeamFlag team={match.homeTeam} />
+                  <span className="group-match-name">{match.homeTeam}</span>
+                  <b>vs</b>
+                  <span className="group-match-name">{match.awayTeam}</span>
+                  <TeamFlag team={match.awayTeam} />
+                </span>
                 <span className="group-match-date">{formatColombiaDate(match.matchDate)}</span>
                 <strong className="group-match-score">{match.homeGoals == null ? "-" : match.homeGoals} : {match.awayGoals == null ? "-" : match.awayGoals}</strong>
                 <span className="group-match-state">{match.live ? `En vivo ${match.elapsed || ""}'` : match.special ? match.apiStatus : match.status === "finished" ? "Finalizado" : "Programado"}</span>
@@ -1486,7 +1517,7 @@ function StandingsView({ standings, onOpenMatch }) {
             return (
               <div className={cx("thirds-row", inZone && "thirds-row-in-zone")} role="row" key={`${row.groupCode}-${row.team}`}>
                 <strong data-label="Pos">#{row.rank}{row.tied ? "=" : ""}</strong>
-                <strong className="group-team" data-label="Seleccion"><span className="team-flag">{teamFlag(row.team)}</span>{row.team}</strong>
+                <strong className="group-team" data-label="Seleccion"><TeamFlag team={row.team} />{row.team}</strong>
                 <span data-label="Grupo">{row.groupCode}</span><span data-label="Pts">{row.points}</span>
                 <span data-label="DG">{row.gd > 0 ? `+${row.gd}` : row.gd}</span><span data-label="GF">{row.gf}</span>
                 <span className={cx("third-status", inZone && "third-status-in", !inZone && "third-status-out")} data-label="Estado">
