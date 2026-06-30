@@ -5,7 +5,6 @@ import {
   CalendarDays,
   CalendarClock,
   CheckCircle2,
-  CircleDot,
   Crown,
   Goal,
   Lock,
@@ -133,6 +132,31 @@ function formatColombiaDate(value) {
   }).format(date);
 }
 
+function formatBracketDate(value) {
+  if (!value) return "Horario por confirmar";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Horario por confirmar";
+  const parts = new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const weekday = String(byType.weekday || "")
+    .replace(/\.$/, "")
+    .toLowerCase();
+  const period = String(byType.dayPeriod || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace("a.m.", "a.m")
+    .replace("p.m.", "p.m");
+  return `${weekday}, ${byType.day}-${byType.month} ${byType.hour}:${byType.minute} ${period}`.trim();
+}
+
 function formatColombiaDay(value) {
   if (!value) return "Sin fecha";
   const date = new Date(value);
@@ -188,7 +212,14 @@ function dateOnlyColombia(value) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-const MATCH_DURATION_MS = 2 * 60 * 60 * 1000;
+const GROUP_MATCH_DURATION_MS = 2 * 60 * 60 * 1000;
+const KNOCKOUT_MATCH_DURATION_MS = 3.5 * 60 * 60 * 1000;
+
+function expectedMatchDurationMs(match) {
+  return ["r32", "r16", "qf", "sf", "third", "final"].includes(match?.stage)
+    ? KNOCKOUT_MATCH_DURATION_MS
+    : GROUP_MATCH_DURATION_MS;
+}
 
 function matchStartTime(match) {
   const start = new Date(match?.match_date).getTime();
@@ -203,13 +234,13 @@ function isMatchInCurrentRound(match, now = Date.now()) {
   const start = matchStartTime(match);
   if (start == null) return false;
   const currentDay = dateOnlyColombia(now);
-  return dateOnlyColombia(start) === currentDay || dateOnlyColombia(start + MATCH_DURATION_MS) === currentDay;
+  return dateOnlyColombia(start) === currentDay || dateOnlyColombia(start + expectedMatchDurationMs(match)) === currentDay;
 }
 
 function isMatchPlaying(match, now = Date.now()) {
   if (match?.status === "finished") return false;
   const start = matchStartTime(match);
-  return start != null && now >= start && now < start + MATCH_DURATION_MS;
+  return start != null && now >= start && now < start + expectedMatchDurationMs(match);
 }
 
 function sortMatchesForDisplay(a, b, now = Date.now()) {
@@ -1129,20 +1160,32 @@ function MatchDetailModal({ detail, busy, onClose }) {
 }
 
 function BracketMatchCard({ match, compact = false }) {
+  const homeScore = match?.home_goals;
+  const awayScore = match?.away_goals;
+  const hasScore = homeScore != null && awayScore != null;
+  const penalties = match?.decided_by_penalties && match.home_penalties != null && match.away_penalties != null
+    ? `Pen. ${match.home_penalties}-${match.away_penalties}`
+    : null;
+
+  function teamRow(team, score, side) {
+    const qualified = match?.qualified_team && normalizeSearchText(match.qualified_team) === normalizeSearchText(team);
+    return (
+      <div className={cx("bracket-team-row", qualified && "qualified")} title={team || ""}>
+        <span className="bracket-flag" aria-hidden="true">{teamFlag(team) || "-"}</span>
+        <span className="bracket-team-name">{team || (side === "home" ? "Local" : "Visitante")}</span>
+        <span className="bracket-team-score">{hasScore ? score : "-"}</span>
+      </div>
+    );
+  }
+
   return (
     <article className={cx("bracket-match", compact && "bracket-match-center", `match-${match?.status || "scheduled"}`)}>
-      <div className="bracket-match-top">
-        <span className="text-xs font-black text-muted">{match?.match_id || "Pendiente"}</span>
-        <CircleDot size={14} className={match?.status === "finished" ? "text-mint" : "text-gold"} />
-      </div>
-      <p className="bracket-date">{formatColombiaDate(match?.match_date)}</p>
+      <p className="bracket-date">{formatBracketDate(match?.match_date)}</p>
       <div className="bracket-team-list">
-        <p className="bracket-team">{match?.home_team || "Local"}</p>
-        <p className="bracket-team">{match?.away_team || "Visitante"}</p>
+        {teamRow(match?.home_team, homeScore, "home")}
+        {teamRow(match?.away_team, awayScore, "away")}
       </div>
-      <div className="bracket-score">
-        {match?.home_goals == null ? "Pendiente" : `${match.home_goals}-${match.away_goals}`}
-      </div>
+      {penalties && <div className="bracket-score">{penalties}</div>}
     </article>
   );
 }
@@ -1163,15 +1206,16 @@ function BracketColumn({ label, matches, side, stage }) {
 }
 
 function BracketView({ bracket }) {
-  const [zoom, setZoom] = useState(0.76);
+  const [zoom, setZoom] = useState(0.82);
   const r32 = bracket.r32 || [];
   const r16 = bracket.r16 || [];
   const qf = bracket.qf || [];
   const sf = bracket.sf || [];
   const finalMatch = bracket.final?.[0];
   const thirdMatch = bracket.third?.[0];
-  const width = 2200;
-  const height = 1420;
+  const finishedR32 = r32.filter((match) => match.status === "finished").length;
+  const width = 2020;
+  const height = 1240;
 
   const columns = [
     { label: "16avos", matches: r32.slice(0, 8), side: "left", stage: "r32" },
@@ -1194,6 +1238,7 @@ function BracketView({ bracket }) {
         <div>
           <p className="eyebrow">Llaves</p>
           <h2 className="page-title">Camino a la copa</h2>
+          <p className="section-subtitle">{finishedR32}/16 partidos de 16avos finalizados</p>
         </div>
         <div className="zoom-controls">
           <button type="button" className="icon-button" onClick={() => nudgeZoom(-0.08)} title="Alejar" aria-label="Alejar">
@@ -1213,8 +1258,12 @@ function BracketView({ bracket }) {
               <BracketColumn key={`${column.side}-${column.stage}`} {...column} />
             ))}
             <div className="tournament-center">
-              <h3>FINAL</h3>
+              <h3>Mundial 2026</h3>
               <div className="final-pedestal">
+                <div className="trophy-core" aria-hidden="true">
+                  <Trophy size={86} />
+                  <span>FINAL</span>
+                </div>
                 <div>
                   <h4>Final</h4>
                   <BracketMatchCard match={finalMatch} compact />

@@ -70,6 +70,15 @@ test("revisa partidos recientes que quedaron sin resultado", () => {
   assert.equal(decision.due, true);
 });
 
+test("ESPN mantiene eliminatorias en ventana por tiempo extra y penales", () => {
+  const now = new Date("2026-06-21T23:30:00.000Z");
+  const decision = espnPollingDecision([
+    match({ match_id: "M1", stage: "r32", match_date: "2026-06-21T20:00:00.000Z" })
+  ], config, {}, now);
+  assert.equal(decision.reason, "started");
+  assert.equal(decision.due, true);
+});
+
 test("aplica backoff exponencial con tope de una hora", () => {
   assert.equal(progressiveBackoffMinutes(1), 2);
   assert.equal(progressiveBackoffMinutes(4), 16);

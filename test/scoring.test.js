@@ -3,11 +3,13 @@ import test from "node:test";
 import {
   assignSharedPositions,
   calculateGroupStandings,
+  inferPredictedKnockoutWinners,
   resolveActualGroups,
   resolveBestThirds,
   scoreLivePrediction,
   scorePrediction
 } from "../server/services/scoring.js";
+import { getBracketAdvancement } from "../server/services/bracket.js";
 
 function groupMatch(id, home, away, homeGoals, awayGoals, status = "finished") {
   return {
@@ -42,7 +44,72 @@ test("eliminatorias: respeta ganador y marcador exacto", () => {
   assert.equal(scorePrediction(prediction, winner).points, 3);
 });
 
+test("eliminatorias: compara marcador por equipo aunque local y visitante esten invertidos", () => {
+  const prediction = {
+    stage: "r16",
+    predicted_home_team: "Brasil",
+    predicted_away_team: "Colombia",
+    predicted_home_goals: 1,
+    predicted_away_goals: 2
+  };
+  const exact = { ...groupMatch("A-1", "Colombia", "Brasil", 2, 1), stage: "r16", qualified_team: "Colombia" };
+  const winner = { ...exact, home_goals: 1, away_goals: 0 };
+  assert.equal(scorePrediction(prediction, exact).points, 5);
+  assert.equal(scorePrediction(prediction, winner).points, 3);
+});
+
+test("eliminatorias: solo da puntos si el equipo correcto fue elegido ganador", () => {
+  const match = { ...groupMatch("A-1", "Colombia", "Brasil", 2, 0), stage: "r16", qualified_team: "Colombia" };
+  assert.equal(scorePrediction({
+    stage: "r16",
+    predicted_home_team: "Colombia",
+    predicted_away_team: "Alemania",
+    predicted_home_goals: 0,
+    predicted_away_goals: 1
+  }, match).points, 0);
+  assert.equal(scorePrediction({
+    stage: "r16",
+    predicted_home_team: "Alemania",
+    predicted_away_team: "Francia",
+    predicted_home_goals: 2,
+    predicted_away_goals: 0
+  }, match).points, 0);
+});
+
+test("cuartos y semifinales: maximo 6, ganador 4", () => {
+  const prediction = {
+    stage: "qf",
+    predicted_home_team: "Marruecos",
+    predicted_away_team: "Francia",
+    predicted_home_goals: 2,
+    predicted_away_goals: 3
+  };
+  const exact = { ...groupMatch("A-1", "Francia", "Marruecos", 3, 2), stage: "qf", qualified_team: "Francia" };
+  assert.equal(scorePrediction(prediction, exact).points, 6);
+  assert.equal(scorePrediction(prediction, { ...exact, home_goals: 1, away_goals: 0 }).points, 4);
+});
+
 test("los penales no se suman al marcador normal", () => {
+  const prediction = {
+    stage: "r16",
+    predicted_home_team: "Colombia",
+    predicted_away_team: "Brasil",
+    predicted_home_goals: 1,
+    predicted_away_goals: 1,
+    predicted_qualified_team: "Colombia"
+  };
+  const match = {
+    ...groupMatch("A-1", "Colombia", "Brasil", 1, 1),
+    stage: "r16",
+    qualified_team: "Colombia",
+    decided_by_penalties: true,
+    home_penalties: 4,
+    away_penalties: 3
+  };
+  assert.equal(scorePrediction(prediction, match).points, 5);
+});
+
+test("eliminatorias: un empate pronosticado sin clasificado no inventa ganador", () => {
   const prediction = {
     stage: "r16",
     predicted_home_team: "Colombia",
@@ -58,7 +125,102 @@ test("los penales no se suman al marcador normal", () => {
     home_penalties: 4,
     away_penalties: 3
   };
+  assert.equal(scorePrediction(prediction, match).points, 0);
+});
+
+test("eliminatorias: infiere ganador empatado desde la siguiente ronda de la prediccion", () => {
+  const [prediction] = inferPredictedKnockoutWinners([
+    {
+      match_id: "O1",
+      stage: "r16",
+      predicted_home_team: "Colombia",
+      predicted_away_team: "Brasil",
+      predicted_home_goals: 1,
+      predicted_away_goals: 1
+    },
+    {
+      match_id: "Q1",
+      stage: "qf",
+      predicted_home_team: "Brasil",
+      predicted_away_team: "Francia",
+      predicted_home_goals: 2,
+      predicted_away_goals: 0
+    }
+  ]);
+  const match = {
+    ...groupMatch("A-1", "Colombia", "Brasil", 1, 1),
+    match_id: "O1",
+    stage: "r16",
+    qualified_team: "Brasil",
+    decided_by_penalties: true,
+    home_penalties: 3,
+    away_penalties: 4
+  };
+  assert.equal(prediction.predicted_qualified_team, "Brasil");
   assert.equal(scorePrediction(prediction, match).points, 5);
+});
+
+test("final y tercer puesto: suma posiciones y exacto por equipo", () => {
+  const final = { ...groupMatch("A-1", "Espana", "Colombia", 1, 2), stage: "final", qualified_team: "Colombia" };
+  assert.equal(scorePrediction({
+    stage: "final",
+    predicted_home_team: "Colombia",
+    predicted_away_team: "Espana",
+    predicted_home_goals: 2,
+    predicted_away_goals: 1
+  }, final).points, 37);
+  assert.equal(scorePrediction({
+    stage: "final",
+    predicted_home_team: "Colombia",
+    predicted_away_team: "Espana",
+    predicted_home_goals: 1,
+    predicted_away_goals: 0
+  }, final).points, 25);
+
+  const third = { ...groupMatch("A-1", "Francia", "Brasil", 2, 1), stage: "third", qualified_team: "Francia" };
+  assert.equal(scorePrediction({
+    stage: "third",
+    predicted_home_team: "Brasil",
+    predicted_away_team: "Francia",
+    predicted_home_goals: 1,
+    predicted_away_goals: 2
+  }, third).points, 12);
+});
+
+test("la llave propaga ganadores y perdedores a los slots correctos", () => {
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "M4",
+    status: "finished",
+    home_team: "Holanda",
+    away_team: "Marruecos",
+    qualified_team: "Marruecos"
+  }), [{
+    fromMatchId: "M4",
+    matchId: "O1",
+    field: "away_team",
+    team: "Marruecos",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "S2",
+    status: "finished",
+    home_team: "Argentina",
+    away_team: "Brasil",
+    qualified_team: "Brasil"
+  }), [{
+    fromMatchId: "S2",
+    matchId: "FINAL",
+    field: "away_team",
+    team: "Brasil",
+    result: "winner"
+  }, {
+    fromMatchId: "S2",
+    matchId: "THIRD",
+    field: "away_team",
+    team: "Argentina",
+    result: "loser"
+  }]);
 });
 
 test("mini-tabla resuelve un empate multiple antes de la diferencia general", () => {

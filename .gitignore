@@ -5,6 +5,8 @@ client/dist/
 .env.*
 !.env.example
 *.log
+outputs/
+tmp/
 server/data/
 *.sqlite
 *.sqlite-*

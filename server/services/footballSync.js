@@ -1,6 +1,7 @@
 import { assertNoError, insertLog, nowIso, requireSupabase } from "../db/supabase.js";
 import { recalculateAllScores } from "./scoring.js";
 import { ApiFootballClient, ApiFootballError } from "./apiFootball.js";
+import { applyBracketAdvancement } from "./bracket.js";
 import { EspnFootballClient } from "./espnFootball.js";
 import { espnPollingDecision, progressiveBackoffMinutes, providerActivity } from "./providerPolicy.js";
 import {
@@ -463,20 +464,25 @@ export class FootballSyncService {
     } else if (FINAL_API_STATUSES.has(apiStatus)) {
       updates.live_home_goals = homeGoals;
       updates.live_away_goals = awayGoals;
-      firstFinal = !match.api_final_at;
-      const confirmationCount = firstFinal ? 0 : Number(match.final_confirmation_count || 0) + 1;
-      updates.api_final_at = match.api_final_at || now;
-      updates.final_confirmation_count = confirmationCount;
       const qualifiedTeam = match.stage === "group" ? null : winnerFromFixture(match, fixture, apiStatus);
       const decidedByPenalties = match.stage !== "group" && apiStatus === "PEN";
       const homePenalties = decidedByPenalties ? penaltyScoreFromFixture(fixture, "home") : null;
       const awayPenalties = decidedByPenalties ? penaltyScoreFromFixture(fixture, "away") : null;
+      const knockoutWithoutQualified = match.stage !== "group" && !qualifiedTeam;
       const resultDiffers = match.home_goals !== homeGoals ||
         match.away_goals !== awayGoals ||
         match.status !== "finished" ||
         (match.qualified_team || null) !== qualifiedTeam ||
         Boolean(match.decided_by_penalties) !== decidedByPenalties;
-      if (resultDiffers && !providerCanReplaceFinal(match, "api-football")) {
+      if (knockoutWithoutQualified) {
+        updates.sync_error = "API-Football marco final, pero no informo el clasificado de la eliminatoria; se reintentara.";
+      } else {
+        firstFinal = !match.api_final_at;
+        const confirmationCount = firstFinal ? 0 : Number(match.final_confirmation_count || 0) + 1;
+        updates.api_final_at = match.api_final_at || now;
+        updates.final_confirmation_count = confirmationCount;
+      }
+      if (!knockoutWithoutQualified && resultDiffers && !providerCanReplaceFinal(match, "api-football")) {
         updates.sync_error = "Resultado API diferente; prevalece una fuente manual de mayor prioridad.";
         await client.from("match_result_audit").insert({
           match_id: match.match_id,
@@ -487,7 +493,7 @@ export class FootballSyncService {
           new_value: { home_goals: homeGoals, away_goals: awayGoals, api_status: apiStatus },
           created_at: now
         });
-      } else if (resultDiffers) {
+      } else if (!knockoutWithoutQualified && resultDiffers) {
         if (match.status === "finished") {
           const { error: auditError } = await client.from("match_result_audit").insert({
             match_id: match.match_id,
@@ -528,6 +534,15 @@ export class FootballSyncService {
       .select("*")
       .single();
     assertNoError(error, `Actualizar ${match.match_id} desde API-Football`);
+    const shouldAdvanceBracket = FINAL_API_STATUSES.has(apiStatus) && data.status === "finished";
+    const bracketChanges = shouldAdvanceBracket
+      ? await applyBracketAdvancement(client, data, {
+        actor: "scheduler",
+        source: "api-football-bracket-advance",
+        reason: `Clasificado propagado desde ${match.match_id}.`,
+        at: now
+      })
+      : [];
     this.io?.emit("match:updated", {
       at: now,
       matchId: match.match_id,
@@ -535,7 +550,15 @@ export class FootballSyncService {
       row: data,
       final: FINAL_API_STATUSES.has(apiStatus)
     });
-    return { row: data, finalChanged, liveChanged, firstFinal, priority };
+    for (const row of bracketChanges) {
+      this.io?.emit("match:updated", {
+        at: now,
+        matchId: row.match_id,
+        row,
+        bracket: true
+      });
+    }
+    return { row: data, finalChanged, liveChanged, firstFinal, priority, bracketChanged: bracketChanges.length };
   }
 
   async maybeProbeApiAccess(config, currentState = {}, trigger = "scheduler") {
@@ -678,6 +701,7 @@ export class FootballSyncService {
 
     let processed = 0;
     let finalChanged = 0;
+    let bracketChanged = 0;
     for (const fixture of fixtures) {
       const fixtureTime = new Date(fixture.date).getTime();
       const match = decision.active.find((candidate) =>
@@ -767,26 +791,46 @@ export class FootballSyncService {
         .select("*")
         .single();
       assertNoError(updateError, `Actualizar ${match.match_id} desde ESPN`);
-      if (!resultChanged) continue;
+      const bracketChanges = final && row.status === "finished"
+        ? await applyBracketAdvancement(client, row, {
+          actor: "scheduler",
+          source: "espn-bracket-advance",
+          reason: `Clasificado propagado desde ${match.match_id}.`,
+          at: updatedAt
+        })
+        : [];
+      bracketChanged += bracketChanges.length;
+      if (!resultChanged && !bracketChanges.length) continue;
       processed += 1;
-      this.io?.emit("match:updated", {
-        at: updatedAt,
-        matchId: match.match_id,
-        groupCode: String(match.match_id).match(/^G-([A-L])-/)?.[1] || null,
-        row,
-        final
-      });
+      if (resultChanged) {
+        this.io?.emit("match:updated", {
+          at: updatedAt,
+          matchId: match.match_id,
+          groupCode: String(match.match_id).match(/^G-([A-L])-/)?.[1] || null,
+          row,
+          final
+        });
+      }
+      for (const bracketRow of bracketChanges) {
+        this.io?.emit("match:updated", {
+          at: updatedAt,
+          matchId: bracketRow.match_id,
+          row: bracketRow,
+          bracket: true
+        });
+      }
     }
-    if (finalChanged) await recalculateAllScores();
-    if (processed) this.io?.emit("scores:updated", { at: this.clock().toISOString(), source: "espn" });
+    if (finalChanged || bracketChanged) await recalculateAllScores();
+    if (processed || bracketChanged) this.io?.emit("scores:updated", { at: this.clock().toISOString(), source: "espn" });
     await insertLog("espn.sync", "ok", `${processed} partido(s) actualizados desde ESPN.`, {
       trigger,
       requests: dates.size,
       processed,
       finalChanged,
+      bracketChanged,
       intervalMinutes: decision.intervalMinutes
     });
-    return { provider: "espn", requests: dates.size, processed, finalChanged, lastSuccessAt: providerState.last_success_at };
+    return { provider: "espn", requests: dates.size, processed, finalChanged, bracketChanged, lastSuccessAt: providerState.last_success_at };
   }
 
   async runOnce({ trigger = "scheduler", forceMatchIds = [] } = {}) {
@@ -920,11 +964,12 @@ export class FootballSyncService {
       }
 
       const finalScoresChanged = processed.some((item) => item.finalChanged);
+      const bracketScoresChanged = processed.some((item) => item.bracketChanged);
       const liveScoresChanged = processed.some((item) => item.liveChanged);
-      if (finalScoresChanged) {
+      if (finalScoresChanged || bracketScoresChanged) {
         await recalculateAllScores();
       }
-      if (finalScoresChanged || liveScoresChanged) {
+      if (finalScoresChanged || liveScoresChanged || bracketScoresChanged) {
         this.io?.emit("scores:updated", {
           at: this.clock().toISOString(),
           source: "api-football",

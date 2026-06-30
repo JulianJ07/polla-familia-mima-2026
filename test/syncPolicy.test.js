@@ -4,6 +4,7 @@ import {
   determinePriority,
   getQuotaState,
   getSyncDueState,
+  nextSyncAt,
   pollingIntervalMinutes,
   selectSyncBatches
 } from "../server/services/syncPolicy.js";
@@ -114,6 +115,44 @@ test("respeta el backoff antes de confirmar un resultado final", () => {
   const due = getSyncDueState(finalMatch, new Date("2026-06-21T20:06:00.000Z"), "normal");
   assert.equal(due.due, false);
   assert.equal(due.confirmation, true);
+});
+
+test("mantiene eliminatorias activas durante tiempo extra y penales", () => {
+  const knockout = match({
+    match_id: "M1",
+    stage: "r32",
+    priority: "P1",
+    api_status: "ET",
+    api_elapsed: 105,
+    match_date: "2026-06-21T18:00:00.000Z",
+    last_synced_at: "2026-06-21T20:50:00.000Z",
+    next_sync_at: "2026-06-21T20:55:00.000Z"
+  });
+  const due = getSyncDueState(knockout, new Date("2026-06-21T21:01:00.000Z"), "normal");
+  assert.equal(due.due, true);
+  assert.equal(due.reason, "live");
+});
+
+test("una eliminatoria final sin clasificado se reintenta en vez de confirmarse", () => {
+  const unresolved = match({
+    match_id: "M1",
+    stage: "r32",
+    status: "live",
+    priority: "P1",
+    api_status: "FT",
+    match_date: "2026-06-21T18:00:00.000Z",
+    last_synced_at: "2026-06-21T20:00:00.000Z"
+  });
+  assert.equal(
+    nextSyncAt(unresolved, "2026-06-21T21:00:00.000Z", "normal"),
+    "2026-06-21T21:10:00.000Z"
+  );
+  const due = getSyncDueState({
+    ...unresolved,
+    next_sync_at: "2026-06-21T21:10:00.000Z"
+  }, new Date("2026-06-21T21:11:00.000Z"), "normal");
+  assert.equal(due.due, true);
+  assert.equal(due.confirmation, false);
 });
 
 test("un resultado manual o bloqueado prevalece sobre la API", () => {

@@ -161,7 +161,7 @@ export function getSyncDueState(match, nowInput, mode = "normal") {
   const lastSynced = timestamp(match.last_synced_at);
   const nextSync = timestamp(match.next_sync_at);
 
-  if (match.api_final_at && FINAL_API_STATUSES.has(match.api_status)) {
+  if (match.status === "finished" && match.api_final_at && FINAL_API_STATUSES.has(match.api_status)) {
     const schedule = finalConfirmationMinutes(priority);
     const confirmationIndex = Number(match.final_confirmation_count || 0);
     if (confirmationIndex >= schedule.length) return { due: false, reason: "confirmed", confirmation: true };
@@ -205,6 +205,7 @@ export function getSyncDueState(match, nowInput, mode = "normal") {
 export function nextSyncAt(match, nowInput, mode = "normal") {
   const now = timestamp(nowInput) ?? Date.now();
   if (FINAL_API_STATUSES.has(match.api_status)) {
+    if (match.status !== "finished") return new Date(now + milliseconds(10)).toISOString();
     const schedule = finalConfirmationMinutes(match.priority);
     const index = Number(match.final_confirmation_count || 0);
     const finalAt = timestamp(match.api_final_at) || now;

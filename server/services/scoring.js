@@ -1,4 +1,5 @@
 import { assertNoError, nowIso, requireSupabase } from "../db/supabase.js";
+import { BRACKET_ADVANCEMENT } from "./bracket.js";
 
 export const STAGE_LABELS = {
   group: "Fase de grupos",
@@ -160,7 +161,97 @@ function predictedWinnerName(prediction) {
     prediction.predicted_home_team,
     prediction.predicted_away_team
   );
-  return byGoals === "draw" ? null : byGoals;
+  if (byGoals && byGoals !== "draw") return byGoals;
+  return prediction.predicted_qualified_team ||
+    prediction.predicted_winner ||
+    prediction.qualified_team ||
+    prediction.winner_team ||
+    null;
+}
+
+function predictionIncludesTeam(prediction, team) {
+  return sameTeam(prediction?.predicted_home_team, team) || sameTeam(prediction?.predicted_away_team, team);
+}
+
+function matchIncludesTeam(match, team) {
+  return sameTeam(match?.home_team, team) || sameTeam(match?.away_team, team);
+}
+
+function knockoutTeamsCorrect(prediction, match) {
+  if (!prediction?.predicted_home_team || !prediction?.predicted_away_team || !match?.home_team || !match?.away_team) {
+    return false;
+  }
+  return (
+    sameTeam(prediction.predicted_home_team, match.home_team) &&
+    sameTeam(prediction.predicted_away_team, match.away_team)
+  ) || (
+    sameTeam(prediction.predicted_home_team, match.away_team) &&
+    sameTeam(prediction.predicted_away_team, match.home_team)
+  );
+}
+
+function predictedGoalsForTeam(prediction, team) {
+  if (sameTeam(prediction?.predicted_home_team, team)) return prediction.predicted_home_goals;
+  if (sameTeam(prediction?.predicted_away_team, team)) return prediction.predicted_away_goals;
+  return null;
+}
+
+function knockoutExactScore(prediction, match) {
+  return knockoutTeamsCorrect(prediction, match) &&
+    predictedGoalsForTeam(prediction, match.home_team) === match.home_goals &&
+    predictedGoalsForTeam(prediction, match.away_team) === match.away_goals;
+}
+
+function winnerCorrectForMatch(prediction, match) {
+  const predictedWinner = predictedWinnerName(prediction);
+  const actualWinner = actualWinnerName(match);
+  return Boolean(
+    predictedWinner &&
+    actualWinner &&
+    sameTeam(predictedWinner, actualWinner) &&
+    predictionIncludesTeam(prediction, actualWinner) &&
+    matchIncludesTeam(match, predictedWinner)
+  );
+}
+
+function actualLoserName(match) {
+  const winner = actualWinnerName(match);
+  if (!winner) return null;
+  if (sameTeam(winner, match.home_team)) return match.away_team;
+  if (sameTeam(winner, match.away_team)) return match.home_team;
+  return null;
+}
+
+function predictedLoserName(prediction) {
+  const winner = predictedWinnerName(prediction);
+  if (!winner) return null;
+  if (sameTeam(winner, prediction.predicted_home_team)) return prediction.predicted_away_team;
+  if (sameTeam(winner, prediction.predicted_away_team)) return prediction.predicted_home_team;
+  return null;
+}
+
+function predictionTeamInSlot(prediction, slot) {
+  if (!prediction) return null;
+  return slot === "home" ? prediction.predicted_home_team : prediction.predicted_away_team;
+}
+
+function inferPredictedQualifiedTeam(prediction, predictionsByMatch) {
+  if (!prediction || !isKnockoutStage(prediction.stage) || predictedWinnerName(prediction)) return null;
+  const link = BRACKET_ADVANCEMENT[prediction.match_id];
+  if (!link?.winner) return null;
+  const nextPrediction = predictionsByMatch.get(link.winner.matchId);
+  const advancedTeam = predictionTeamInSlot(nextPrediction, link.winner.slot);
+  if (sameTeam(advancedTeam, prediction.predicted_home_team)) return prediction.predicted_home_team;
+  if (sameTeam(advancedTeam, prediction.predicted_away_team)) return prediction.predicted_away_team;
+  return null;
+}
+
+export function inferPredictedKnockoutWinners(predictions = []) {
+  const predictionsByMatch = new Map((predictions || []).map((prediction) => [prediction.match_id, prediction]));
+  return (predictions || []).map((prediction) => {
+    const predictedQualifiedTeam = inferPredictedQualifiedTeam(prediction, predictionsByMatch);
+    return predictedQualifiedTeam ? { ...prediction, predicted_qualified_team: predictedQualifiedTeam } : prediction;
+  });
 }
 
 function knockoutWinnerPending(match) {
@@ -597,12 +688,8 @@ async function buildScoringContext(matchMap) {
 function predictionVerdict(prediction, match, scored) {
   if (!matchFinished(match) || knockoutWinnerPending(match)) return "pending";
   if (scored.points > 0) return "hit";
-  if (
-    prediction.predicted_home_goals === match.home_goals &&
-    prediction.predicted_away_goals === match.away_goals
-  ) {
-    return "hit";
-  }
+  const hitStats = predictionHitStats(prediction, match);
+  if (hitStats.exact || hitStats.partial) return "hit";
   return "miss";
 }
 
@@ -611,22 +698,21 @@ function predictionHitStats(prediction, match) {
     return { exact: false, partial: false };
   }
 
-  const exact =
-    prediction.predicted_home_goals === match.home_goals &&
-    prediction.predicted_away_goals === match.away_goals;
-  if (exact) return { exact: true, partial: false };
-
   if (prediction.stage === "group") {
+    const exact =
+      prediction.predicted_home_goals === match.home_goals &&
+      prediction.predicted_away_goals === match.away_goals;
+    if (exact) return { exact: true, partial: false };
     const predictedOutcome = outcome(prediction.predicted_home_goals, prediction.predicted_away_goals);
     const actualOutcome = outcome(match.home_goals, match.away_goals);
     return { exact: false, partial: predictedOutcome != null && predictedOutcome === actualOutcome };
   }
 
-  const predictedWinner = predictedWinnerName(prediction);
-  const actualWinner = actualWinnerName(match);
+  const winnerCorrect = winnerCorrectForMatch(prediction, match);
+  const exact = winnerCorrect && knockoutExactScore(prediction, match);
   return {
-    exact: false,
-    partial: Boolean(predictedWinner && actualWinner && sameTeam(predictedWinner, actualWinner))
+    exact,
+    partial: !exact && winnerCorrect
   };
 }
 
@@ -651,30 +737,25 @@ export function scorePrediction(prediction, match) {
     return { points: 0, reason: "Sin puntos" };
   }
 
-  const teamsCorrect =
-    sameTeam(prediction.predicted_home_team, match.home_team) &&
-    sameTeam(prediction.predicted_away_team, match.away_team);
-  const predictedWinner = predictedWinnerName(prediction);
-  const actualWinner = actualWinnerName(match);
-  const winnerCorrect = Boolean(predictedWinner && actualWinner && sameTeam(predictedWinner, actualWinner));
+  const teamsCorrect = knockoutTeamsCorrect(prediction, match);
+  const exactScore = knockoutExactScore(prediction, match);
+  const winnerCorrect = winnerCorrectForMatch(prediction, match);
 
   if (prediction.stage === "r32" || prediction.stage === "r16") {
-    if (teamsCorrect && exact) return { points: 5, reason: "Llave y marcador exacto" };
+    if (teamsCorrect && winnerCorrect && exactScore) return { points: 5, reason: "Llave y marcador exacto" };
     if (winnerCorrect) return { points: 3, reason: "Ganador correcto" };
     return { points: 0, reason: "Sin puntos" };
   }
 
   if (prediction.stage === "qf" || prediction.stage === "sf") {
-    if (teamsCorrect && exact) return { points: 6, reason: "Llave y marcador exacto" };
+    if (teamsCorrect && winnerCorrect && exactScore) return { points: 6, reason: "Llave y marcador exacto" };
     if (winnerCorrect) return { points: 4, reason: "Ganador correcto" };
     return { points: 0, reason: "Sin puntos" };
   }
 
   if (prediction.stage === "third") {
-    const actualFourth = sameTeam(actualWinner, match.home_team) ? match.away_team : match.home_team;
-    const predictedFourth = sameTeam(predictedWinner, prediction.predicted_home_team)
-      ? prediction.predicted_away_team
-      : prediction.predicted_home_team;
+    const actualFourth = actualLoserName(match);
+    const predictedFourth = predictedLoserName(prediction);
     let points = 0;
     const reasons = [];
     if (winnerCorrect) {
@@ -685,7 +766,7 @@ export function scorePrediction(prediction, match) {
       points += 4;
       reasons.push("Cuarto correcto");
     }
-    if (teamsCorrect && exact) {
+    if (teamsCorrect && winnerCorrect && exactScore) {
       points += 3;
       reasons.push("Marcador exacto");
     }
@@ -693,10 +774,8 @@ export function scorePrediction(prediction, match) {
   }
 
   if (prediction.stage === "final") {
-    const actualRunnerUp = sameTeam(actualWinner, match.home_team) ? match.away_team : match.home_team;
-    const predictedRunnerUp = sameTeam(predictedWinner, prediction.predicted_home_team)
-      ? prediction.predicted_away_team
-      : prediction.predicted_home_team;
+    const actualRunnerUp = actualLoserName(match);
+    const predictedRunnerUp = predictedLoserName(prediction);
     let points = 0;
     const reasons = [];
     if (winnerCorrect) {
@@ -707,7 +786,7 @@ export function scorePrediction(prediction, match) {
       points += 10;
       reasons.push("Subcampeón correcto");
     }
-    if (teamsCorrect && exact) {
+    if (teamsCorrect && winnerCorrect && exactScore) {
       points += 12;
       reasons.push("Marcador exacto");
     }
@@ -760,7 +839,7 @@ function createScoreState(matchMap) {
 }
 
 function addMatchScoresFromRows(predictions, state, matchMap) {
-  for (const prediction of predictions || []) {
+  for (const prediction of inferPredictedKnockoutWinners(predictions || [])) {
     const match = matchMap.get(prediction.match_id);
     const scored = scorePrediction(prediction, match);
     const hitStats = predictionHitStats(prediction, match);
@@ -1223,14 +1302,15 @@ export async function getParticipantDetail(participantId) {
     .order("stage", { ascending: true })
     .order("match_id", { ascending: true });
   assertNoError(predictionError, "Leer detalle de predicciones");
+  const predictionsWithWinners = inferPredictedKnockoutWinners(predictions || []);
 
-  const livePredictionScores = (predictions || []).map((prediction) => ({
+  const livePredictionScores = predictionsWithWinners.map((prediction) => ({
     matchId: prediction.match_id,
     ...scoreLivePrediction(prediction, matchMap.get(prediction.match_id))
   })).filter((item) => item.virtualMatch);
   const provisionalPoints = Number(livePredictionScores.reduce((total, item) => total + item.points, 0).toFixed(2));
 
-  const enrichedPredictions = (predictions || [])
+  const enrichedPredictions = predictionsWithWinners
     .map((prediction) => {
       const match = matchMap.get(prediction.match_id);
       const scored = scorePrediction(prediction, match);

@@ -19,6 +19,7 @@ import {
   normalizeAwardName,
   recalculateAllScores
 } from "../services/scoring.js";
+import { applyBracketAdvancement } from "../services/bracket.js";
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -527,11 +528,20 @@ export function createApiRouter(io, footballSync) {
       assertNoError(auditError, "Auditar resultado manual");
     }
 
+    const bracketChanges = await applyBracketAdvancement(client, updated, {
+      actor: "admin",
+      source: "admin-bracket-advance",
+      reason: `Clasificado propagado desde ${matchId}.`
+    });
+
     await recalculateAllScores();
     const payload = { matchId, updates };
     await insertLog("admin.match", "ok", `Resultado manual guardado para ${matchId}.`, payload);
+    for (const row of bracketChanges) {
+      io.emit("match:updated", { at: nowIso(), matchId: row.match_id, row, bracket: true });
+    }
     io.emit("scores:updated", { at: nowIso(), manual: true, matchId });
-    res.json({ ok: true, row: updated });
+    res.json({ ok: true, row: updated, bracketChanges });
   }));
 
   router.get("/admin/scoring-controls", asyncHandler(adminOnly), asyncHandler(async (_req, res) => {
