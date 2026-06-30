@@ -2338,7 +2338,7 @@ main.pt-16 > section.relative h2.font-display {
 .final-pedestal {
   display: grid;
   align-self: center;
-  gap: 22px;
+  gap: 18px;
   border: 1px solid rgb(255 213 74 / 0.34);
   border-radius: 8px;
   background:
@@ -2349,14 +2349,30 @@ main.pt-16 > section.relative h2.font-display {
   box-shadow: 0 22px 68px rgb(0 0 0 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
 
+.final-pedestal > div:not(.trophy-core) {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+}
+
 .final-pedestal h4 {
-  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+  margin-bottom: 0;
   color: white;
   text-align: center;
   font-family: "Bebas Neue", Impact, sans-serif;
   font-size: 30px;
   line-height: 1;
   letter-spacing: 0.04em;
+}
+
+.final-pedestal .bracket-match {
+  height: auto;
+}
+
+.final-pedestal .bracket-match-center {
+  min-height: 122px;
 }
 
 .trophy-core {
