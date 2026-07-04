@@ -203,6 +203,48 @@ test("la llave propaga ganadores y perdedores a los slots correctos", () => {
   }]);
 
   assert.deepEqual(getBracketAdvancement({
+    match_id: "M14",
+    status: "finished",
+    home_team: "Australia",
+    away_team: "Egipto",
+    qualified_team: "Egipto"
+  }), [{
+    fromMatchId: "M14",
+    matchId: "O8",
+    field: "home_team",
+    team: "Egipto",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "M15",
+    status: "finished",
+    home_team: "Suiza",
+    away_team: "Argelia",
+    qualified_team: "Suiza"
+  }), [{
+    fromMatchId: "M15",
+    matchId: "O7",
+    field: "home_team",
+    team: "Suiza",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "M16",
+    status: "finished",
+    home_team: "Colombia",
+    away_team: "Ghana",
+    qualified_team: "Colombia"
+  }), [{
+    fromMatchId: "M16",
+    matchId: "O7",
+    field: "away_team",
+    team: "Colombia",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
     match_id: "S2",
     status: "finished",
     home_team: "Argentina",

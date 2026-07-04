@@ -805,7 +805,7 @@ const BRACKET_VISUAL_ORDER = {
   sfRight: ["S2"],
   qfRight: ["Q3", "Q4"],
   r16Right: ["O5", "O6", "O7", "O8"],
-  r32Right: ["M6", "M5", "M8", "M7", "M14", "M16", "M15", "M13"]
+  r32Right: ["M6", "M5", "M8", "M7", "M15", "M16", "M14", "M13"]
 };
 
 function orderMatchesById(matches = [], order = []) {
