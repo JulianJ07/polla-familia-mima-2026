@@ -203,6 +203,34 @@ test("la llave propaga ganadores y perdedores a los slots correctos", () => {
   }]);
 
   assert.deepEqual(getBracketAdvancement({
+    match_id: "M2",
+    status: "finished",
+    home_team: "Francia",
+    away_team: "Suecia",
+    qualified_team: "Francia"
+  }), [{
+    fromMatchId: "M2",
+    matchId: "O2",
+    field: "away_team",
+    team: "Francia",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "M10",
+    status: "finished",
+    home_team: "Costa Marfil",
+    away_team: "Noruega",
+    qualified_team: "Noruega"
+  }), [{
+    fromMatchId: "M10",
+    matchId: "O3",
+    field: "away_team",
+    team: "Noruega",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
     match_id: "M14",
     status: "finished",
     home_team: "Australia",

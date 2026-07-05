@@ -798,7 +798,7 @@ function predictionToBracketMatch(item) {
 }
 
 const BRACKET_VISUAL_ORDER = {
-  r32Left: ["M3", "M4", "M1", "M10", "M9", "M2", "M11", "M12"],
+  r32Left: ["M3", "M4", "M1", "M2", "M9", "M10", "M11", "M12"],
   r16Left: ["O1", "O2", "O3", "O4"],
   qfLeft: ["Q1", "Q2"],
   sfLeft: ["S1"],
