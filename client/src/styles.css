@@ -3460,6 +3460,117 @@ main.pt-16 > section.relative h2.font-display {
     height: 34px;
   }
 
+  .participant-panel-bracket-active {
+    padding: 12px;
+  }
+
+  .participant-panel-bracket-active .participant-panel-heading {
+    margin-bottom: 8px;
+  }
+
+  .participant-panel-bracket-active .section-title {
+    font-size: 25px;
+  }
+
+  .participant-panel-bracket-active .participant-summary-grid {
+    display: none;
+  }
+
+  .participant-panel-bracket-active .participant-filter-tabs {
+    margin-top: 8px;
+    padding-bottom: 2px;
+  }
+
+  .participant-panel-bracket-active .prediction-section {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .participant-panel-bracket-active .prediction-section-title {
+    margin-bottom: 6px;
+  }
+
+  .participant-panel-bracket-active .participant-bracket-full-button {
+    min-height: 34px;
+    margin-top: 2px;
+  }
+
+  .participant-bracket-viewport {
+    max-height: 64svh;
+    overflow: auto;
+  }
+
+  .participant-tournament {
+    width: 1040px !important;
+    min-height: 480px !important;
+    grid-template-columns: 90px 100px 100px 94px 126px 94px 100px 100px 90px;
+    gap: 8px;
+    padding: 8px;
+    transform: none !important;
+  }
+
+  .participant-tournament .tournament-column,
+  .participant-tournament .tournament-center {
+    min-height: 456px;
+  }
+
+  .participant-tournament .tournament-r32 .tournament-slots {
+    grid-template-rows: repeat(8, 50px);
+  }
+
+  .participant-tournament .tournament-r16 .tournament-slots {
+    grid-template-rows: repeat(4, 82px);
+  }
+
+  .participant-tournament .tournament-qf .tournament-slots {
+    grid-template-rows: repeat(2, 152px);
+  }
+
+  .participant-tournament .tournament-sf .tournament-slots {
+    grid-template-rows: 242px;
+  }
+
+  .participant-tournament .bracket-match {
+    min-height: 0;
+    gap: 3px;
+    padding: 5px;
+  }
+
+  .participant-tournament .bracket-team-row {
+    grid-template-columns: 20px minmax(0, 1fr) 26px;
+    min-height: 18px;
+    gap: 4px;
+    padding: 3px 4px;
+  }
+
+  .participant-tournament .bracket-flag {
+    width: 18px;
+    height: 12px;
+  }
+
+  .participant-tournament .bracket-match p {
+    font-size: 10px;
+  }
+
+  .participant-tournament .bracket-score {
+    height: 20px;
+    min-width: 20px;
+    font-size: 10px;
+  }
+
+  .participant-tournament .tournament-center h3 {
+    font-size: 24px;
+  }
+
+  .participant-tournament .final-pedestal {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .participant-tournament .final-pedestal h4 {
+    font-size: 16px;
+  }
+
   .participant-match-filters {
     grid-template-columns: 1fr;
   }

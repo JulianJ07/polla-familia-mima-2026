@@ -579,8 +579,8 @@ function ParticipantPanel({ detail }) {
   }
 
   return (
-    <div className="panel participant-panel">
-      <div className="mb-4 flex items-center justify-between">
+    <div className={cx("panel participant-panel", detailFilter === "bracket" && "participant-panel-bracket-active")}>
+      <div className="participant-panel-heading mb-4 flex items-center justify-between">
         <div className="min-w-0">
           <h3 className="section-title truncate">{detail.participant.name}</h3>
           <p className="text-sm font-semibold text-muted">{formatPoints(detail.totalPoints)} puntos</p>
