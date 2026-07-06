@@ -136,6 +136,33 @@ const knockoutScheduleNumbers = {
   FINAL: 104
 };
 
+const samuelPredictionSlotRemap = {
+  O1: { match_id: "O2" },
+  O2: { match_id: "O1" },
+  O3: { match_id: "O5", swapTeams: true },
+  O4: { match_id: "O6", swapTeams: true },
+  O5: { match_id: "O3" },
+  O6: { match_id: "O4" },
+  O7: { match_id: "O8", swapTeams: true },
+  O8: { match_id: "O7" },
+  Q1: { match_id: "Q1", swapTeams: true },
+  Q4: { match_id: "Q4", swapTeams: true }
+};
+
+function realignSamuelKnockoutPrediction(row) {
+  const remap = samuelPredictionSlotRemap[row.match_id];
+  if (!remap) return row;
+  if (!remap.swapTeams) return { ...row, match_id: remap.match_id };
+  return {
+    ...row,
+    match_id: remap.match_id,
+    predicted_home_team: row.predicted_away_team,
+    predicted_away_team: row.predicted_home_team,
+    predicted_home_goals: row.predicted_away_goals,
+    predicted_away_goals: row.predicted_home_goals
+  };
+}
+
 const samuelPredictions = [
   prediction("G-A-1", "México", "Sudáfrica", 2, 1, "group"),
   prediction("G-A-2", "Corea", "Chequia", 1, 0, "group"),
@@ -241,7 +268,7 @@ const samuelPredictions = [
   prediction("S2", "Inglaterra", "Colombia", 3, 3, "sf"),
   prediction("FINAL", "Portugal", "Inglaterra", 3, 2, "final"),
   prediction("THIRD", "Francia", "Colombia", 3, 1, "third")
-];
+].map(realignSamuelKnockoutPrediction);
 
 const samuelGroupPredictions = Object.entries({
   A: ["México", "Corea", "Sudáfrica", "Chequia"],

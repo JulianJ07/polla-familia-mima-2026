@@ -273,6 +273,34 @@ test("la llave propaga ganadores y perdedores a los slots correctos", () => {
   }]);
 
   assert.deepEqual(getBracketAdvancement({
+    match_id: "O4",
+    status: "finished",
+    home_team: "Mexico",
+    away_team: "Inglaterra",
+    qualified_team: "Inglaterra"
+  }), [{
+    fromMatchId: "O4",
+    matchId: "Q3",
+    field: "home_team",
+    team: "Inglaterra",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "O5",
+    status: "finished",
+    home_team: "Espana",
+    away_team: "Portugal",
+    qualified_team: "Portugal"
+  }), [{
+    fromMatchId: "O5",
+    matchId: "Q2",
+    field: "away_team",
+    team: "Portugal",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
     match_id: "S2",
     status: "finished",
     home_team: "Argentina",

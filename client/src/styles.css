@@ -826,6 +826,12 @@ main.pt-16 > section.relative h2.font-display {
   text-transform: uppercase;
 }
 
+.participant-bracket-full-button {
+  min-height: 38px;
+  flex: 0 0 auto;
+  text-transform: uppercase;
+}
+
 .participant-filter-tabs {
   display: flex;
   gap: 8px;
@@ -3095,6 +3101,12 @@ main.pt-16 > section.relative h2.font-display {
     align-items: start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .participant-bracket-full-button {
+    width: 100%;
+    justify-content: center;
+    margin-top: 6px;
   }
 
   .prediction-list {

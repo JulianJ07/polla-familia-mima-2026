@@ -798,14 +798,14 @@ function predictionToBracketMatch(item) {
 }
 
 const BRACKET_VISUAL_ORDER = {
-  r32Left: ["M3", "M4", "M1", "M2", "M9", "M10", "M11", "M12"],
-  r16Left: ["O1", "O2", "O3", "O4"],
+  r32Left: ["M3", "M4", "M1", "M2", "M9", "M10", "M6", "M5"],
+  r16Left: ["O1", "O2", "O3", "O5"],
   qfLeft: ["Q1", "Q2"],
   sfLeft: ["S1"],
   sfRight: ["S2"],
   qfRight: ["Q3", "Q4"],
-  r16Right: ["O5", "O6", "O7", "O8"],
-  r32Right: ["M6", "M5", "M8", "M7", "M15", "M16", "M14", "M13"]
+  r16Right: ["O4", "O6", "O7", "O8"],
+  r32Right: ["M11", "M12", "M8", "M7", "M15", "M16", "M14", "M13"]
 };
 
 function orderMatchesById(matches = [], order = []) {
@@ -833,6 +833,8 @@ function buildBracketColumns(byStage) {
 }
 
 function ParticipantBracketPreview({ predictions }) {
+  const [showComplete, setShowComplete] = useState(false);
+  const [completeZoom, setCompleteZoom] = useState(0.46);
   const byStage = predictions
     .filter((item) => ["r32", "r16", "qf", "sf", "third", "final"].includes(item.stage))
     .reduce((acc, item) => {
@@ -853,12 +855,26 @@ function ParticipantBracketPreview({ predictions }) {
   }
 
   const columns = buildBracketColumns(byStage);
+  const finalMatch = (byStage.final || [])[0];
+  const thirdMatch = (byStage.third || [])[0];
+  const completeWidth = 2160;
+  const completeHeight = 1360;
+
+  function nudgeCompleteZoom(delta) {
+    setCompleteZoom((current) => Math.min(1, Math.max(0.34, Number((current + delta).toFixed(2)))));
+  }
 
   return (
     <div className="prediction-section">
       <div className="prediction-section-title">
-        <h4>Llaves</h4>
-        <span>prediccion individual del participante</span>
+        <div>
+          <h4>Llaves</h4>
+          <span>prediccion individual del participante</span>
+        </div>
+        <button type="button" className="secondary-button participant-bracket-full-button" onClick={() => setShowComplete(true)}>
+          <Maximize2 size={15} />
+          Ver llaves completas
+        </button>
       </div>
       <div className="participant-bracket-viewport">
         <div className="tournament-bracket participant-tournament">
@@ -870,11 +886,11 @@ function ParticipantBracketPreview({ predictions }) {
             <div className="final-pedestal">
               <div>
                 <h4>Final</h4>
-                <BracketMatchCard match={(byStage.final || [])[0]} compact />
+                <BracketMatchCard match={finalMatch} compact />
               </div>
               <div>
                 <h4>3er puesto</h4>
-                <BracketMatchCard match={(byStage.third || [])[0]} compact />
+                <BracketMatchCard match={thirdMatch} compact />
               </div>
             </div>
           </div>
@@ -883,6 +899,43 @@ function ParticipantBracketPreview({ predictions }) {
           ))}
         </div>
       </div>
+      {showComplete && (
+        <div className="modal-backdrop bracket-fullscreen-backdrop" role="presentation" onMouseDown={() => setShowComplete(false)}>
+          <motion.div
+            className="bracket-fullscreen-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Llaves completas del participante"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="bracket-fullscreen-header">
+              <div>
+                <p className="eyebrow">Prediccion individual</p>
+                <h3>Llaves completas</h3>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowComplete(false)} title="Cerrar" aria-label="Cerrar">
+                <XCircle size={18} />
+              </button>
+            </div>
+            <div className="bracket-fullscreen-tools">
+              <button type="button" className="icon-button" onClick={() => nudgeCompleteZoom(-0.06)} title="Alejar" aria-label="Alejar llaves completas">
+                <Minus size={16} />
+              </button>
+              <span>{Math.round(completeZoom * 100)}%</span>
+              <button type="button" className="icon-button" onClick={() => nudgeCompleteZoom(0.06)} title="Acercar" aria-label="Acercar llaves completas">
+                <Plus size={16} />
+              </button>
+            </div>
+            <div className="bracket-complete-viewport">
+              <div className="bracket-zoom-plane bracket-complete-plane" style={{ width: completeWidth * completeZoom, minHeight: completeHeight * completeZoom }}>
+                <BracketBoard columns={columns} finalMatch={finalMatch} thirdMatch={thirdMatch} width={completeWidth} height={completeHeight} zoom={completeZoom} complete />
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

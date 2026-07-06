@@ -268,6 +268,33 @@ const predictionComments = [];
 const groupPredictions = [];
 const individualPredictions = [];
 
+const knockoutPredictionSlotRemap = {
+  O1: { match_id: "O2" },
+  O2: { match_id: "O1" },
+  O3: { match_id: "O5", swapTeams: true },
+  O4: { match_id: "O6", swapTeams: true },
+  O5: { match_id: "O3" },
+  O6: { match_id: "O4" },
+  O7: { match_id: "O8", swapTeams: true },
+  O8: { match_id: "O7" },
+  Q1: { match_id: "Q1", swapTeams: true },
+  Q4: { match_id: "Q4", swapTeams: true }
+};
+
+function realignKnockoutPrediction(row) {
+  const remap = knockoutPredictionSlotRemap[row.match_id];
+  if (!remap) return row;
+  if (!remap.swapTeams) return { ...row, match_id: remap.match_id };
+  return {
+    ...row,
+    match_id: remap.match_id,
+    predicted_home_team: row.predicted_away_team,
+    predicted_away_team: row.predicted_home_team,
+    predicted_home_goals: row.predicted_away_goals,
+    predicted_away_goals: row.predicted_home_goals
+  };
+}
+
 for (const participant of participants) {
   for (const fixture of groupFixtures) {
     const score = readPredictionScore(participant.sheet, participant.name, fixture, warnings);
@@ -318,7 +345,7 @@ for (const participant of participants) {
       });
     }
     if (!score) continue;
-    predictions.push({
+    const predictionRow = realignKnockoutPrediction({
       participant_id: participant.id,
       match_id: item.match_id,
       predicted_home_goals: score.homeGoals,
@@ -327,14 +354,15 @@ for (const participant of participants) {
       predicted_away_team: teams.away_team || null,
       stage: item.stage
     });
+    predictions.push(predictionRow);
     predictionComments.push({
       participant_id: participant.id,
       participant: participant.name,
-      match_id: item.match_id,
+      match_id: predictionRow.match_id,
       stage: item.stage,
-      home_team: teams.home_team,
-      away_team: teams.away_team,
-      score: `${score.homeGoals}-${score.awayGoals}`
+      home_team: predictionRow.predicted_home_team,
+      away_team: predictionRow.predicted_away_team,
+      score: `${predictionRow.predicted_home_goals}-${predictionRow.predicted_away_goals}`
     });
   }
 
