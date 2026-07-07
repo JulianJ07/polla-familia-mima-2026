@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FootballSyncService } from "../server/services/footballSync.js";
+import { FootballSyncService, matchEspnFixture } from "../server/services/footballSync.js";
 
 function fixture(status, {
   homeGoals = 1,
@@ -79,6 +79,22 @@ test("API-Football no cierra eliminatoria empatada sin clasificado", async () =>
   assert.match(result.row.sync_error, /no informo el clasificado/i);
   assert.equal(result.row.next_sync_at, "2026-06-21T21:10:00.000Z");
   assert.equal(patches[0].patch.status, undefined);
+});
+
+test("ESPN fallback reconoce partidos con local y visitante invertidos", () => {
+  const candidate = {
+    match_id: "O6",
+    home_team: "Bélgica",
+    away_team: "USA",
+    match_date: "2026-07-07T00:00:00.000Z"
+  };
+  const fixture = {
+    homeTeam: "United States",
+    awayTeam: "Belgium",
+    date: "2026-07-07T00:00:00.000Z"
+  };
+
+  assert.deepEqual(matchEspnFixture(candidate, fixture), { match: candidate, reversed: true });
 });
 
 test("API-Football cierra eliminatoria decidida por penales", async () => {

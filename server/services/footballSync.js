@@ -97,6 +97,37 @@ export function espnScoreboardDatesForMatch(matchDate) {
     .filter((date, index, all) => all.indexOf(date) === index);
 }
 
+export function matchEspnFixture(candidate, fixture) {
+  const fixtureTime = new Date(fixture?.date).getTime();
+  if (!Number.isFinite(fixtureTime)) return null;
+  const matchTime = new Date(candidate?.match_date).getTime();
+  if (!Number.isFinite(matchTime) || Math.abs(matchTime - fixtureTime) > 4 * 60 * 60 * 1000) return null;
+
+  const candidateHome = canonicalTeam(candidate.home_team);
+  const candidateAway = canonicalTeam(candidate.away_team);
+  const fixtureHome = canonicalTeam(fixture.homeTeam);
+  const fixtureAway = canonicalTeam(fixture.awayTeam);
+
+  if (candidateHome === fixtureHome && candidateAway === fixtureAway) {
+    return { match: candidate, reversed: false };
+  }
+  if (candidateHome === fixtureAway && candidateAway === fixtureHome) {
+    return { match: candidate, reversed: true };
+  }
+  return null;
+}
+
+function mapEspnFixtureToMatch(fixture, reversed = false) {
+  return {
+    ...fixture,
+    homeGoals: reversed ? fixture.awayGoals : fixture.homeGoals,
+    awayGoals: reversed ? fixture.homeGoals : fixture.awayGoals,
+    homePenalties: reversed ? fixture.awayPenalties : fixture.homePenalties,
+    awayPenalties: reversed ? fixture.homePenalties : fixture.awayPenalties,
+    orientation: reversed ? "reversed" : "direct"
+  };
+}
+
 function sanitizedFixture(fixture) {
   return {
     fixture: {
@@ -702,14 +733,13 @@ export class FootballSyncService {
     let processed = 0;
     let finalChanged = 0;
     let bracketChanged = 0;
-    for (const fixture of fixtures) {
-      const fixtureTime = new Date(fixture.date).getTime();
-      const match = decision.active.find((candidate) =>
-        Math.abs(new Date(candidate.match_date).getTime() - fixtureTime) <= 4 * 60 * 60 * 1000 &&
-        canonicalTeam(candidate.home_team) === canonicalTeam(fixture.homeTeam) &&
-        canonicalTeam(candidate.away_team) === canonicalTeam(fixture.awayTeam)
-      );
-      if (!match) continue;
+    for (const rawFixture of fixtures) {
+      const matchInfo = decision.active
+        .map((candidate) => matchEspnFixture(candidate, rawFixture))
+        .find(Boolean);
+      if (!matchInfo) continue;
+      const { match, reversed } = matchInfo;
+      const fixture = mapEspnFixtureToMatch(rawFixture, reversed);
       const updatedAt = this.clock().toISOString();
       const nextEspnAt = decision.intervalMinutes
         ? new Date(this.clock().getTime() + decision.intervalMinutes * 60_000).toISOString()
@@ -719,7 +749,15 @@ export class FootballSyncService {
         espn_status: fixture.status,
         espn_last_synced_at: updatedAt,
         espn_next_sync_at: nextEspnAt,
-        raw_payload: { provider: "espn", event_id: fixture.id, status: fixture.status, detail: fixture.detail }
+        raw_payload: {
+          provider: "espn",
+          event_id: fixture.id,
+          status: fixture.status,
+          detail: fixture.detail,
+          orientation: fixture.orientation,
+          home_team: rawFixture.homeTeam,
+          away_team: rawFixture.awayTeam
+        }
       };
       let final = false;
       let resultChanged = false;
