@@ -281,7 +281,7 @@ test("la llave propaga ganadores y perdedores a los slots correctos", () => {
   }), [{
     fromMatchId: "O4",
     matchId: "Q3",
-    field: "home_team",
+    field: "away_team",
     team: "Inglaterra",
     result: "winner"
   }]);
@@ -295,8 +295,36 @@ test("la llave propaga ganadores y perdedores a los slots correctos", () => {
   }), [{
     fromMatchId: "O5",
     matchId: "Q2",
-    field: "away_team",
+    field: "home_team",
     team: "Portugal",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "O6",
+    status: "finished",
+    home_team: "Belgica",
+    away_team: "USA",
+    qualified_team: "Belgica"
+  }), [{
+    fromMatchId: "O6",
+    matchId: "Q2",
+    field: "away_team",
+    team: "Belgica",
+    result: "winner"
+  }]);
+
+  assert.deepEqual(getBracketAdvancement({
+    match_id: "O8",
+    status: "finished",
+    home_team: "Egipto",
+    away_team: "Argentina",
+    qualified_team: "Argentina"
+  }), [{
+    fromMatchId: "O8",
+    matchId: "Q4",
+    field: "home_team",
+    team: "Argentina",
     result: "winner"
   }]);
 
